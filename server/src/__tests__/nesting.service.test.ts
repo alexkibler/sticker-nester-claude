@@ -250,4 +250,319 @@ describe('NestingService', () => {
       expect(result.utilization).toBeCloseTo(100, 0);
     });
   });
+
+  describe('Non-rectangular sticker shapes', () => {
+    it('should nest triangular stickers', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'triangle-1',
+          points: [
+            { x: 0, y: 0 },
+            { x: 3, y: 0 },
+            { x: 1.5, y: 3 },
+          ],
+          width: 3,
+          height: 3,
+        },
+        {
+          id: 'triangle-2',
+          points: [
+            { x: 0, y: 0 },
+            { x: 3, y: 0 },
+            { x: 1.5, y: 3 },
+          ],
+          width: 3,
+          height: 3,
+        },
+      ];
+
+      const result = service.nestStickers(stickers, 10, 10, 0.0625);
+
+      expect(result.placements).toHaveLength(2);
+      expect(result.utilization).toBeGreaterThan(0);
+
+      // Verify both triangles are placed
+      expect(result.placements.map(p => p.id)).toContain('triangle-1');
+      expect(result.placements.map(p => p.id)).toContain('triangle-2');
+    });
+
+    it('should nest hexagonal stickers', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'hex-1',
+          points: [
+            { x: 2, y: 0 },
+            { x: 1, y: 1.73 },
+            { x: -1, y: 1.73 },
+            { x: -2, y: 0 },
+            { x: -1, y: -1.73 },
+            { x: 1, y: -1.73 },
+          ],
+          width: 4,
+          height: 3.46,
+        },
+        {
+          id: 'hex-2',
+          points: [
+            { x: 2, y: 0 },
+            { x: 1, y: 1.73 },
+            { x: -1, y: 1.73 },
+            { x: -2, y: 0 },
+            { x: -1, y: -1.73 },
+            { x: 1, y: -1.73 },
+          ],
+          width: 4,
+          height: 3.46,
+        },
+      ];
+
+      const result = service.nestStickers(stickers, 12, 12, 0.0625);
+
+      expect(result.placements.length).toBeGreaterThan(0);
+      expect(result.utilization).toBeGreaterThan(0);
+    });
+
+    it('should nest circular stickers (approximated)', () => {
+      // Create circle approximation
+      const points: Point[] = [];
+      const radius = 1.5;
+      const segments = 16;
+      for (let i = 0; i < segments; i++) {
+        const angle = (i / segments) * 2 * Math.PI;
+        points.push({
+          x: Math.cos(angle) * radius,
+          y: Math.sin(angle) * radius,
+        });
+      }
+
+      const stickers: Sticker[] = [
+        {
+          id: 'circle-1',
+          points: points,
+          width: 3,
+          height: 3,
+        },
+        {
+          id: 'circle-2',
+          points: points,
+          width: 3,
+          height: 3,
+        },
+        {
+          id: 'circle-3',
+          points: points,
+          width: 3,
+          height: 3,
+        },
+      ];
+
+      const result = service.nestStickers(stickers, 12, 12, 0.0625);
+
+      expect(result.placements.length).toBeGreaterThan(0);
+      expect(result.placements.length).toBeLessThanOrEqual(3);
+    });
+
+    it('should nest star-shaped stickers', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'star-1',
+          points: [
+            { x: 0, y: -2 },
+            { x: 0.5, y: -0.5 },
+            { x: 1.9, y: -0.5 },
+            { x: 0.8, y: 0.4 },
+            { x: 1.2, y: 1.8 },
+            { x: 0, y: 0.9 },
+            { x: -1.2, y: 1.8 },
+            { x: -0.8, y: 0.4 },
+            { x: -1.9, y: -0.5 },
+            { x: -0.5, y: -0.5 },
+          ],
+          width: 3.8,
+          height: 3.8,
+        },
+      ];
+
+      const result = service.nestStickers(stickers, 10, 10, 0.0625);
+
+      expect(result.placements).toHaveLength(1);
+      expect(result.placements[0].id).toBe('star-1');
+      expect(result.utilization).toBeGreaterThan(0);
+    });
+
+    it('should nest L-shaped stickers', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'l-shape-1',
+          points: [
+            { x: 0, y: 0 },
+            { x: 3, y: 0 },
+            { x: 3, y: 1.5 },
+            { x: 1.5, y: 1.5 },
+            { x: 1.5, y: 3 },
+            { x: 0, y: 3 },
+          ],
+          width: 3,
+          height: 3,
+        },
+        {
+          id: 'l-shape-2',
+          points: [
+            { x: 0, y: 0 },
+            { x: 3, y: 0 },
+            { x: 3, y: 1.5 },
+            { x: 1.5, y: 1.5 },
+            { x: 1.5, y: 3 },
+            { x: 0, y: 3 },
+          ],
+          width: 3,
+          height: 3,
+        },
+      ];
+
+      const result = service.nestStickers(stickers, 12, 12, 0.0625);
+
+      expect(result.placements.length).toBeGreaterThan(0);
+      expect(result.placements.length).toBeLessThanOrEqual(2);
+    });
+
+    it('should nest irregular polygon stickers', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'irregular-1',
+          points: [
+            { x: 0, y: 0 },
+            { x: 4, y: 1 },
+            { x: 5, y: 4 },
+            { x: 2, y: 5 },
+            { x: 0, y: 3 },
+          ],
+          width: 5,
+          height: 5,
+        },
+      ];
+
+      const result = service.nestStickers(stickers, 10, 10, 0.0625);
+
+      expect(result.placements).toHaveLength(1);
+      expect(result.placements[0].id).toBe('irregular-1');
+    });
+
+    it('should nest mixed shapes efficiently', () => {
+      const stickers: Sticker[] = [
+        // Triangle
+        {
+          id: 'triangle',
+          points: [
+            { x: 0, y: 0 },
+            { x: 2, y: 0 },
+            { x: 1, y: 2 },
+          ],
+          width: 2,
+          height: 2,
+        },
+        // Square
+        {
+          id: 'square',
+          points: [
+            { x: 0, y: 0 },
+            { x: 2, y: 0 },
+            { x: 2, y: 2 },
+            { x: 0, y: 2 },
+          ],
+          width: 2,
+          height: 2,
+        },
+        // Pentagon
+        {
+          id: 'pentagon',
+          points: [
+            { x: 1, y: 0 },
+            { x: 1.95, y: 0.69 },
+            { x: 1.59, y: 1.81 },
+            { x: 0.41, y: 1.81 },
+            { x: 0.05, y: 0.69 },
+          ],
+          width: 1.95,
+          height: 1.81,
+        },
+      ];
+
+      const result = service.nestStickers(stickers, 10, 10, 0.0625);
+
+      // All shapes should fit
+      expect(result.placements).toHaveLength(3);
+      expect(result.placements.map(p => p.id)).toContain('triangle');
+      expect(result.placements.map(p => p.id)).toContain('square');
+      expect(result.placements.map(p => p.id)).toContain('pentagon');
+    });
+
+    it('should handle non-rectangular shapes that do not fit', () => {
+      // Create large irregular polygons
+      const stickers: Sticker[] = Array.from({ length: 20 }, (_, i) => ({
+        id: `large-irregular-${i}`,
+        points: [
+          { x: 0, y: 0 },
+          { x: 5, y: 1 },
+          { x: 6, y: 5 },
+          { x: 2, y: 6 },
+          { x: 0, y: 4 },
+        ],
+        width: 6,
+        height: 6,
+      }));
+
+      const result = service.nestStickers(stickers, 10, 10, 0.0625);
+
+      // Not all should fit
+      expect(result.placements.length).toBeLessThan(20);
+      expect(result.placements.length).toBeGreaterThan(0);
+    });
+
+    it('should calculate fitness correctly for non-rectangular shapes', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'triangle',
+          points: [
+            { x: 0, y: 0 },
+            { x: 4, y: 0 },
+            { x: 2, y: 3 },
+          ],
+          width: 4,
+          height: 3,
+        },
+      ];
+
+      const result = service.nestStickers(stickers, 10, 10, 0);
+
+      // Fitness should be width * height = 4 * 3 = 12
+      expect(result.fitness).toBe(12);
+    });
+
+    it('should handle very complex polygon shapes', () => {
+      // Create a complex heart-like shape
+      const stickers: Sticker[] = [
+        {
+          id: 'heart',
+          points: [
+            { x: 0, y: -2 },
+            { x: 1, y: -3 },
+            { x: 2, y: -2 },
+            { x: 2, y: 0 },
+            { x: 0, y: 2 },
+            { x: -2, y: 0 },
+            { x: -2, y: -2 },
+            { x: -1, y: -3 },
+          ],
+          width: 4,
+          height: 5,
+        },
+      ];
+
+      const result = service.nestStickers(stickers, 10, 10, 0.0625);
+
+      expect(result.placements).toHaveLength(1);
+      expect(result.placements[0].id).toBe('heart');
+    });
+  });
 });
