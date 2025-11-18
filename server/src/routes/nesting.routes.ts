@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { upload } from '../index';
+import { upload } from '../config/multer';
 import { ImageService } from '../services/image.service';
 import { GeometryService } from '../services/geometry.service';
 import { NestingService, Sticker } from '../services/nesting.service';
@@ -33,7 +33,7 @@ router.post('/process', upload.array('images', 20), async (req: Request, res: Re
       })
     );
 
-    res.json({ stickers: processed });
+    res.json({ images: processed });
   } catch (error: any) {
     console.error('Error processing images:', error);
     res.status(500).json({ error: error.message });
@@ -47,7 +47,7 @@ router.post('/nest', async (req: Request, res: Response) => {
   try {
     const { stickers, sheetWidth, sheetHeight, spacing } = req.body;
 
-    if (!stickers || !sheetWidth || !sheetHeight) {
+    if (!stickers || stickers.length === 0 || !sheetWidth || !sheetHeight) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 

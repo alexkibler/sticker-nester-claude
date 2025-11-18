@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { upload } from '../index';
+import { upload } from '../config/multer';
 import { PdfService } from '../services/pdf.service';
 import { Sticker } from '../services/nesting.service';
 
