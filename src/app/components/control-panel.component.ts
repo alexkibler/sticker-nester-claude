@@ -119,14 +119,6 @@ import { FormsModule } from '@angular/forms';
         </button>
 
         <button
-          class="btn btn-secondary"
-          [disabled]="!isNesting"
-          (click)="stopNesting.emit()"
-        >
-          Stop
-        </button>
-
-        <button
           class="btn btn-success"
           [disabled]="!canExport"
           (click)="exportPdf.emit()"
@@ -288,7 +280,6 @@ export class ControlPanelComponent {
 
   @Output() configChanged = new EventEmitter<any>();
   @Output() startNesting = new EventEmitter<void>();
-  @Output() stopNesting = new EventEmitter<void>();
   @Output() exportPdf = new EventEmitter<void>();
   @Output() reset = new EventEmitter<void>();
 

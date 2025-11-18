@@ -1,7 +1,6 @@
 import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
-import { v4 as uuidv4 } from 'uuid';
 
 // Components
 import { UploadDropzoneComponent } from './components/upload-dropzone.component';
@@ -11,17 +10,12 @@ import { ControlPanelComponent } from './components/control-panel.component';
 // Services
 import {
   ImageAnalysisService,
-  GeometryService,
-  UnitConversionService,
-  WorkerService,
-  PdfService
+  ApiService
 } from './services';
 
 // Models
 import {
   StickerSource,
-  NestingRequest,
-  NestingResponse,
   Placement
 } from './models';
 
@@ -73,41 +67,15 @@ export class App implements OnInit, OnDestroy {
 
   constructor(
     private imageAnalysis: ImageAnalysisService,
-    private geometry: GeometryService,
-    private unitConversion: UnitConversionService,
-    private workerService: WorkerService,
-    private pdfService: PdfService
+    private apiService: ApiService
   ) {}
 
   ngOnInit(): void {
-    // Subscribe to nesting progress
-    this.subscriptions.add(
-      this.workerService.getProgress().subscribe({
-        next: (response: NestingResponse) => {
-          this.handleNestingProgress(response);
-        },
-        error: (error) => {
-          console.error('Nesting error:', error);
-          this.isNesting = false;
-        }
-      })
-    );
-
-    // Subscribe to errors
-    this.subscriptions.add(
-      this.workerService.getErrors().subscribe({
-        next: (error: string) => {
-          console.error('Worker error:', error);
-          alert(`Nesting error: ${error}`);
-          this.isNesting = false;
-        }
-      })
-    );
+    // No subscriptions needed for backend API approach
   }
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
-    this.workerService.terminate();
   }
 
   /**
@@ -117,8 +85,31 @@ export class App implements OnInit, OnDestroy {
     this.isProcessing = true;
 
     try {
-      for (const file of files) {
-        await this.processFile(file);
+      // Process all files via backend API
+      const processedImages = await this.apiService.processImages(files);
+
+      // Create sticker objects with processed data
+      for (let i = 0; i < processedImages.length; i++) {
+        const processed = processedImages[i];
+        const file = files[i];
+
+        const sticker: StickerSource = {
+          id: processed.id,
+          file,
+          bitmap: await this.imageAnalysis.loadImageBitmap(file),
+          inputDimensions: {
+            width: processed.width,
+            height: processed.height,
+            unit: 'in'
+          },
+          originalPath: processed.path,
+          simplifiedPath: processed.path,
+          offsetPath: processed.path,
+          margin: this.config.margin,
+          isProcessed: true
+        };
+
+        this.stickers.push(sticker);
       }
     } catch (error) {
       console.error('Error processing files:', error);
@@ -138,81 +129,11 @@ export class App implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Process a single file through the entire pipeline
-   */
-  private async processFile(file: File): Promise<void> {
-    try {
-      // Create sticker object
-      const sticker: StickerSource = {
-        id: uuidv4(),
-        file,
-        bitmap: null,
-        inputDimensions: {
-          width: 2, // Default size
-          height: 2,
-          unit: 'in'
-        },
-        originalPath: [],
-        simplifiedPath: [],
-        offsetPath: [],
-        margin: this.config.margin,
-        isProcessed: false
-      };
-
-      // Load image bitmap for preview
-      sticker.bitmap = await this.imageAnalysis.loadImageBitmap(file);
-
-      // Calculate actual dimensions (maintain aspect ratio)
-      const aspectRatio = sticker.bitmap.width / sticker.bitmap.height;
-      sticker.inputDimensions.height = sticker.inputDimensions.width / aspectRatio;
-
-      // Trace image to vector
-      const paths = await this.imageAnalysis.traceImageFile(file);
-      const largestPath = this.imageAnalysis.getLargestPath(paths);
-
-      if (largestPath.length === 0) {
-        console.warn('Could not trace path for', file.name);
-        return;
-      }
-
-      // Store original high-res path
-      sticker.originalPath = largestPath;
-
-      // Simplify path for nesting (low-res)
-      sticker.simplifiedPath = this.geometry.simplifyPath(
-        largestPath,
-        2.0,
-        true
-      );
-
-      // Apply offset for margin/bleed
-      if (this.config.margin > 0) {
-        const offsetDistance = this.unitConversion.toCanvasPixels(
-          this.config.margin,
-          'in'
-        );
-        sticker.offsetPath = await this.geometry.offsetPolygon(
-          sticker.simplifiedPath,
-          offsetDistance,
-          'round'
-        );
-      } else {
-        sticker.offsetPath = [...sticker.simplifiedPath];
-      }
-
-      sticker.isProcessed = true;
-      this.stickers.push(sticker);
-    } catch (error) {
-      console.error('Error processing file:', file.name, error);
-      throw error;
-    }
-  }
 
   /**
    * Start nesting algorithm
    */
-  onStartNesting(): void {
+  async onStartNesting(): Promise<void> {
     if (this.stickers.length === 0) {
       alert('Please upload some stickers first');
       return;
@@ -221,50 +142,31 @@ export class App implements OnInit, OnDestroy {
     this.isNesting = true;
     this.placements = [];
 
-    // Prepare nesting request
-    const request: NestingRequest = {
-      bin: {
-        width: this.config.sheetWidth,
-        height: this.config.sheetHeight
-      },
-      shapes: this.stickers.map(s => ({
-        id: s.id,
-        points: s.simplifiedPath
-      })),
-      config: {
-        rotations: this.config.rotations,
-        populationSize: this.config.populationSize,
-        mutationRate: this.config.mutationRate,
+    try {
+      // Call backend API for nesting
+      const response = await this.apiService.nestStickers({
+        stickers: this.stickers.map(s => ({
+          id: s.id,
+          points: s.simplifiedPath,
+          width: s.inputDimensions.width,
+          height: s.inputDimensions.height
+        })),
+        sheetWidth: this.config.sheetWidth,
+        sheetHeight: this.config.sheetHeight,
         spacing: this.config.spacing
-      }
-    };
+      });
 
-    // Start worker
-    this.workerService.startNesting(request);
-  }
-
-  /**
-   * Stop nesting algorithm
-   */
-  onStopNesting(): void {
-    this.workerService.stopNesting();
-    this.isNesting = false;
-  }
-
-  /**
-   * Handle nesting progress updates
-   */
-  private handleNestingProgress(response: NestingResponse): void {
-    this.currentGeneration = response.generation;
-    this.currentFitness = response.fitness;
-    this.placements = response.placements;
-    this.utilization = response.binUtilization || 0;
-
-    // If complete, stop nesting
-    if (response.generation >= 1000) {
+      this.placements = response.placements;
+      this.utilization = response.utilization;
+      this.currentFitness = response.fitness;
+    } catch (error) {
+      console.error('Nesting error:', error);
+      alert('Error running nesting algorithm. Please try again.');
+    } finally {
       this.isNesting = false;
     }
   }
+
 
   /**
    * Export to PDF
@@ -276,15 +178,28 @@ export class App implements OnInit, OnDestroy {
     }
 
     try {
-      const blob = await this.pdfService.generatePdf(
-        this.stickers,
+      // Create map of files for backend
+      const fileMap = new Map<string, File>();
+      this.stickers.forEach(sticker => {
+        fileMap.set(sticker.id, sticker.file);
+      });
+
+      // Call backend API to generate PDF
+      const blob = await this.apiService.generatePdf(
+        fileMap,
         this.placements,
         this.config.sheetWidth,
         this.config.sheetHeight
       );
 
+      // Download the PDF
       const filename = `sticker-layout-${Date.now()}.pdf`;
-      this.pdfService.downloadBlob(blob, filename);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Error generating PDF. Please try again.');
