@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="900" xmlns="http://www.w3.org/2000/svg">
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" font-size="24" font-weight="bold">Polygon Packing (Actual Shapes)</text>
+  <text x="400" y="55" text-anchor="middle" font-size="18">Sheet 1 of 1</text>
+
+  <!-- Sheet background -->
+  <rect x="50" y="80" width="700" height="700" fill="white" stroke="black" stroke-width="2"/>
+
+  <!-- Placements -->
+  <path d="M 115.63 80.00 L 131.05 124.39 L 178.04 125.35 L 140.59 153.74 L 154.20 198.72 L 115.63 171.88 L 77.05 198.72 L 90.66 153.74 L 53.21 125.35 L 100.20 124.39 Z" fill="#FF6B6B" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 249.79 80.00 L 306.62 112.81 L 306.62 178.44 L 249.79 211.25 L 192.96 178.44 L 192.96 112.81 Z" fill="#4ECDC4" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 372.29 80.00 L 429.12 178.44 L 315.46 178.44 Z" fill="#45B7D1" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 464.17 80.00 L 477.88 119.46 L 519.64 120.31 L 486.36 145.54 L 498.45 185.53 L 464.17 161.67 L 429.88 185.53 L 441.98 145.54 L 408.69 120.31 L 450.45 119.46 Z" fill="#FFA07A" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 577.92 80.00 L 589.58 118.13 L 628.43 109.17 L 601.25 138.33 L 628.43 167.50 L 589.58 158.54 L 577.92 196.67 L 566.25 158.54 L 527.40 167.50 L 554.58 138.33 L 527.40 109.17 L 566.25 118.13 Z" fill="#98D8C8" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 688.75 80.00 L 739.27 109.17 L 739.27 167.50 L 688.75 196.67 L 638.23 167.50 L 638.23 109.17 Z" fill="#F7DC6F" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 464.17 173.33 L 519.64 213.64 L 498.45 278.86 L 429.88 278.86 L 408.69 213.64 Z" fill="#BB8FCE" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 621.67 179.17 L 662.91 196.25 L 680.00 237.50 L 662.91 278.75 L 621.67 295.83 L 580.42 278.75 L 563.33 237.50 L 580.42 196.25 Z" fill="#85C1E2" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 181.25 176.25 L 231.77 263.75 L 130.73 263.75 Z" fill="#F8B739" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 300.83 187.92 L 313.86 225.40 L 353.54 226.21 L 321.92 250.18 L 333.41 288.17 L 300.83 265.50 L 268.26 288.17 L 279.75 250.18 L 248.13 226.21 L 287.80 225.40 Z" fill="#52B788" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 101.04 237.50 L 113.04 272.02 L 149.59 272.77 L 120.46 294.85 L 131.04 329.84 L 101.04 308.96 L 71.04 329.84 L 81.62 294.85 L 52.50 272.77 L 89.04 272.02 Z" fill="#E07A5F" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 392.71 260.83 L 402.92 294.19 L 436.91 286.35 L 413.12 311.87 L 436.91 337.40 L 402.92 329.56 L 392.71 362.92 L 382.50 329.56 L 348.50 337.40 L 372.29 311.87 L 348.50 286.35 L 382.50 294.19 Z" fill="#81B29A" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 544.37 263.75 L 588.58 289.27 L 588.58 340.31 L 544.37 365.83 L 500.17 340.31 L 500.17 289.27 Z" fill="#F2CC8F" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 696.04 266.67 L 744.59 301.94 L 726.04 359.00 L 666.04 359.00 L 647.50 301.94 Z" fill="#3D5A80" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 188.54 272.50 L 224.63 287.45 L 239.58 323.54 L 224.63 359.63 L 188.54 374.58 L 152.45 359.63 L 137.50 323.54 L 152.45 287.45 Z" fill="#EE6C4D" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 302.29 278.33 L 346.50 354.90 L 258.09 354.90 Z" fill="#FF6B6B" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 449.58 316.25 L 461.24 349.79 L 496.74 350.51 L 468.45 371.96 L 478.73 405.95 L 449.58 385.67 L 420.44 405.95 L 430.72 371.96 L 402.43 350.51 L 437.93 349.79 Z" fill="#4ECDC4" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 96.67 322.08 L 106.95 351.68 L 138.28 352.31 L 113.31 371.24 L 122.38 401.23 L 96.67 383.33 L 70.95 401.23 L 80.02 371.24 L 55.06 352.31 L 86.38 351.68 Z" fill="#45B7D1" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 615.83 333.75 L 624.58 362.34 L 653.72 355.62 L 633.33 377.50 L 653.72 399.37 L 624.58 392.66 L 615.83 421.25 L 607.08 392.66 L 577.94 399.37 L 598.33 377.50 L 577.94 355.62 L 607.08 362.34 Z" fill="#FFA07A" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 359.17 357.08 L 397.06 378.96 L 397.06 422.71 L 359.17 444.58 L 321.28 422.71 L 321.28 378.96 Z" fill="#98D8C8" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 242.50 360.00 L 284.11 390.23 L 268.22 439.14 L 216.78 439.14 L 200.89 390.23 Z" fill="#F7DC6F" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 697.50 368.75 L 728.44 381.56 L 741.25 412.50 L 728.44 443.44 L 697.50 456.25 L 666.56 443.44 L 653.75 412.50 L 666.56 381.56 Z" fill="#BB8FCE" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+  <path d="M 516.67 362.92 L 554.56 428.54 L 478.78 428.54 Z" fill="#85C1E2" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+
+  <!-- Stats -->
+  <text x="400" y="810" text-anchor="middle" font-size="18" font-weight="bold">Sheet Statistics</text>
+  <text x="400" y="835" text-anchor="middle" font-size="16">Stickers: 23 | Utilization: 53.9%</text>
+  <text x="400" y="860" text-anchor="middle" font-size="14">Sheet Size: 12" × 12" (304.8mm × 304.8mm)</text>
+</svg>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="900" xmlns="http://www.w3.org/2000/svg">
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" font-size="24" font-weight="bold">Rectangle Packing (Bounding Boxes)</text>
+  <text x="400" y="55" text-anchor="middle" font-size="18">Sheet 3 of 3</text>
+
+  <!-- Sheet background -->
+  <rect x="50" y="80" width="700" height="700" fill="white" stroke="black" stroke-width="2"/>
+
+  <!-- Placements -->
+  <path d="M 423.33 266.67 L 424.07 259.23 L 429.08 238.29 L 441.96 207.68 L 465.08 173.03 L 499.15 140.69 L 543.09 116.64 L 594.11 105.53 L 648.05 109.95 L 699.90 130.24 L 744.49 164.67 L 777.18 210.02 L 794.46 262.40 L 794.46 317.98 L 777.18 373.71 L 744.49 427.65 L 699.90 478.95 L 648.05 527.62 L 594.11 574.02 L 543.09 618.38 L 499.15 660.33 L 465.08 698.79 L 441.96 732.01 L 429.08 757.86 L 424.07 774.33 L 423.33 780.00 L 422.60 774.33 L 417.59 757.86 L 404.71 732.01 L 381.59 698.79 L 347.52 660.33 L 303.57 618.38 L 252.55 574.02 L 198.62 527.62 L 146.77 478.95 L 102.18 427.65 L 69.49 373.71 L 52.21 317.98 L 52.21 262.40 L 69.49 210.02 L 102.18 164.67 L 146.77 130.24 L 198.62 109.95 L 252.55 105.53 L 303.57 116.64 L 347.52 140.69 L 381.59 173.03 L 404.71 207.68 L 417.59 238.29 L 422.60 259.23 L 423.33 266.67 Z" fill="#FF6B6B" fill-opacity="0.7" stroke="#333" stroke-width="1"/>
+
+  <!-- Stats -->
+  <text x="400" y="810" text-anchor="middle" font-size="18" font-weight="bold">Sheet Statistics</text>
+  <text x="400" y="835" text-anchor="middle" font-size="16">Stickers: 1 | Utilization: 92.4%</text>
+  <text x="400" y="860" text-anchor="middle" font-size="14">Sheet Size: 12" × 12" (304.8mm × 304.8mm)</text>
+</svg>

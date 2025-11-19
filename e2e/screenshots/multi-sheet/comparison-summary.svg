@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1000" height="800" xmlns="http://www.w3.org/2000/svg">
+  <text x="500" y="40" text-anchor="middle" font-size="28" font-weight="bold">Multi-Sheet Packing Comparison</text>
+  <text x="500" y="70" text-anchor="middle" font-size="18">26 Unique Designs</text>
+
+  <!-- Rectangle Packing Summary -->
+  <rect x="50" y="100" width="400" height="300" fill="#FFF9E6" stroke="#333" stroke-width="2"/>
+  <text x="250" y="130" text-anchor="middle" font-size="22" font-weight="bold">Rectangle Packing</text>
+  <text x="250" y="160" text-anchor="middle" font-size="16">(Bounding Boxes)</text>
+
+  <text x="80" y="200" font-size="16">Sheets Used: 3</text>
+  <text x="80" y="230" font-size="16">Total Utilization: 118.0%</text>
+  <text x="80" y="260" font-size="16">Total Items Packed:</text>
+  <text x="100" y="280" font-size="14" font-weight="bold">3 stickers</text>
+  <text x="80" y="305" font-size="14" font-weight="bold">Per Sheet:</text>
+  <text x="100" y="325" font-size="13">Sheet 1: 1 items, 144.4%</text>
+  <text x="100" y="345" font-size="13">Sheet 2: 1 items, 117.0%</text>
+  <text x="100" y="365" font-size="13">Sheet 3: 1 items, 92.4%</text>
+
+  <rect x="550" y="100" width="400" height="300" fill="#E6F7FF" stroke="#333" stroke-width="2"/>
+  <text x="750" y="130" text-anchor="middle" font-size="22" font-weight="bold">Polygon Packing</text>
+  <text x="750" y="160" text-anchor="middle" font-size="16">(Actual Shapes)</text>
+
+  <text x="580" y="200" font-size="16">Sheets Used: 1</text>
+  <text x="580" y="230" font-size="16">Total Utilization: 18.0%</text>
+  <text x="580" y="260" font-size="16">Total Items Packed:</text>
+  <text x="600" y="280" font-size="14" font-weight="bold">23 stickers</text>
+  <text x="580" y="305" font-size="14" font-weight="bold">Per Sheet:</text>
+  <text x="600" y="325" font-size="13">Sheet 1: 23 items, 53.9%</text>
+
+  <rect x="150" y="450" width="700" height="150" fill="#F0F0F0" stroke="#333" stroke-width="2"/>
+  <text x="500" y="480" text-anchor="middle" font-size="20" font-weight="bold">Analysis</text>
+  <text x="500" y="510" text-anchor="middle" font-size="16">Items Packed: 23 vs 3 (Winner: Polygon)</text>
+  <text x="500" y="535" text-anchor="middle" font-size="16">Utilization: 18.0% vs 118.0% (Winner: Rectangle)</text>
+  <text x="500" y="560" text-anchor="middle" font-size="16">Difference: 20 items (666.7%)</text>
+  <text x="500" y="585" text-anchor="middle" font-size="14" font-style="italic">Polygon packing uses actual shapes for better space efficiency</text>
+</svg>

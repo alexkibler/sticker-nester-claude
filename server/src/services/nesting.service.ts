@@ -1,5 +1,12 @@
 import { Point } from './image.service';
 import { MaxRectsPacker, IRectangle } from 'maxrects-packer';
+import {
+  PolygonPacker,
+  PackablePolygon,
+  PolygonPlacement,
+  PolygonPackingResult,
+} from './polygon-packing.service';
+import { GeometryService } from './geometry.service';
 
 export interface Sticker {
   id: string;
@@ -491,6 +498,264 @@ export class NestingService {
       placements,
       utilization,
       fitness: usedArea
+    };
+  }
+
+  /**
+   * Nest stickers onto a single sheet using POLYGON packing (rasterization overlay algorithm)
+   * This uses the actual polygon shapes instead of bounding rectangles
+   */
+  nestStickersPolygon(
+    stickers: Sticker[],
+    sheetWidth: number,
+    sheetHeight: number,
+    spacing: number = 0.0625,
+    cellsPerInch: number = 100,
+    stepSize: number = 0.05
+  ): NestingResult {
+    console.log(`Polygon packing (single sheet): ${stickers.length} stickers`);
+
+    // CRITICAL: Convert dimensions from millimeters to inches
+    // All dimensions in the system are in mm, but PolygonPacker expects inches
+    const MM_PER_INCH = 25.4;
+    const sheetWidthInches = sheetWidth / MM_PER_INCH;
+    const sheetHeightInches = sheetHeight / MM_PER_INCH;
+    const spacingInches = spacing / MM_PER_INCH;
+
+    console.log(`Sheet: ${sheetWidth.toFixed(1)}mm × ${sheetHeight.toFixed(1)}mm = ${sheetWidthInches.toFixed(1)}" × ${sheetHeightInches.toFixed(1)}"`);
+
+    // Convert stickers to packable polygons (convert dimensions to inches)
+    const geometryService = new GeometryService();
+    const polygons: PackablePolygon[] = stickers.map(sticker => {
+      const widthInches = sticker.width / MM_PER_INCH;
+      const heightInches = sticker.height / MM_PER_INCH;
+      const area = widthInches * heightInches;
+
+      // Convert polygon points from mm to inches
+      const pointsInches = sticker.points.map(p => ({
+        x: p.x / MM_PER_INCH,
+        y: p.y / MM_PER_INCH,
+      }));
+
+      return {
+        id: sticker.id,
+        points: pointsInches,
+        width: widthInches,
+        height: heightInches,
+        area,
+      };
+    });
+
+    // Create packer and pack polygons (all dimensions now in inches)
+    const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize);
+    const result = packer.pack(polygons);
+
+    // Convert polygon placements to standard placements (convert positions back to mm for consistency)
+    const placements: Placement[] = result.placements.map(p => ({
+      id: p.id,
+      x: p.x * MM_PER_INCH, // Convert back to mm
+      y: p.y * MM_PER_INCH, // Convert back to mm
+      rotation: p.rotation,
+    }));
+
+    // Calculate fitness (total area placed in mm²)
+    const fitness = result.placements.reduce((sum, p) => {
+      const sticker = stickers.find(s => s.id === p.id);
+      return sum + (sticker ? sticker.width * sticker.height : 0);
+    }, 0);
+
+    console.log(`Polygon packing result: ${placements.length}/${stickers.length} placed, ${result.utilization.toFixed(1)}% utilization`);
+
+    return {
+      placements,
+      utilization: result.utilization,
+      fitness,
+    };
+  }
+
+  /**
+   * Nest stickers across multiple sheets using POLYGON packing with Oversubscribe and Sort strategy
+   * Uses actual polygon shapes instead of bounding rectangles
+   */
+  nestStickersMultiSheetPolygon(
+    stickers: Sticker[],
+    sheetWidth: number,
+    sheetHeight: number,
+    pageCount: number,
+    spacing: number = 0.0625,
+    cellsPerInch: number = 100,
+    stepSize: number = 0.05
+  ): MultiSheetResult {
+    console.log(`Polygon multi-sheet packing: ${stickers.length} unique designs across ${pageCount} pages`);
+
+    // Handle edge cases
+    if (stickers.length === 0 || pageCount === 0) {
+      return {
+        sheets: [],
+        totalUtilization: 0,
+        quantities: {},
+      };
+    }
+
+    // CRITICAL: Convert dimensions from millimeters to inches
+    // All dimensions in the system are in mm, but PolygonPacker expects inches
+    const MM_PER_INCH = 25.4;
+    const sheetWidthInches = sheetWidth / MM_PER_INCH;
+    const sheetHeightInches = sheetHeight / MM_PER_INCH;
+    const spacingInches = spacing / MM_PER_INCH;
+
+    console.log(`Sheet: ${sheetWidth.toFixed(1)}mm × ${sheetHeight.toFixed(1)}mm = ${sheetWidthInches.toFixed(1)}" × ${sheetHeightInches.toFixed(1)}"`);
+
+    // Step 1: Calculate target area with buffer (Oversubscribe strategy)
+    // Keep area calculation in mm² for now (will be converted below)
+    const targetArea = pageCount * sheetWidth * sheetHeight;
+    const bufferMultiplier = pageCount <= 5 ? 1.15 : pageCount <= 20 ? 1.10 : 1.05;
+    const targetWithBuffer = targetArea * bufferMultiplier;
+    console.log(`Target area: ${targetArea.toFixed(2)} mm², with ${(bufferMultiplier * 100 - 100).toFixed(0)}% buffer: ${targetWithBuffer.toFixed(2)} mm²`);
+
+    // Step 2: Generate candidate pool by cycling through stickers
+    const geometryService = new GeometryService();
+    interface PolygonInstance extends PackablePolygon {
+      stickerId: string;
+      instanceId: string;
+    }
+
+    const allPolygons: PolygonInstance[] = [];
+    let currentArea = 0; // in mm²
+    let stickerIndex = 0;
+    let instanceCounter: { [stickerId: string]: number } = {};
+
+    // Initialize instance counters
+    stickers.forEach(sticker => {
+      instanceCounter[sticker.id] = 0;
+    });
+
+    // Calculate reasonable cap
+    const avgStickerArea = stickers.reduce((sum, s) => sum + (s.width * s.height), 0) / stickers.length;
+    const estimatedItemsNeeded = Math.ceil(targetWithBuffer / avgStickerArea);
+    const calculatedCap = Math.min(estimatedItemsNeeded * 3, 5000);
+    const MAX_CANDIDATE_ITEMS = Math.max(calculatedCap, 500);
+
+    console.log(`Average sticker area: ${avgStickerArea.toFixed(2)} mm², estimated items needed: ${estimatedItemsNeeded}, cap: ${MAX_CANDIDATE_ITEMS}`);
+
+    // Cycle through stickers in round-robin fashion
+    while (currentArea < targetWithBuffer && allPolygons.length < MAX_CANDIDATE_ITEMS) {
+      const sticker = stickers[stickerIndex % stickers.length];
+      const itemArea = sticker.width * sticker.height; // in mm²
+
+      const instanceId = `${sticker.id}_${instanceCounter[sticker.id]}`;
+      instanceCounter[sticker.id]++;
+
+      // Convert dimensions to inches for polygon packing
+      const widthInches = sticker.width / MM_PER_INCH;
+      const heightInches = sticker.height / MM_PER_INCH;
+      const areaInches = widthInches * heightInches;
+
+      // Convert polygon points from mm to inches
+      const pointsInches = sticker.points.map(p => ({
+        x: p.x / MM_PER_INCH,
+        y: p.y / MM_PER_INCH,
+      }));
+
+      allPolygons.push({
+        id: instanceId,
+        stickerId: sticker.id,
+        instanceId: instanceId,
+        points: pointsInches, // in inches
+        width: widthInches,   // in inches
+        height: heightInches, // in inches
+        area: areaInches,     // in square inches
+      });
+
+      currentArea += itemArea; // Keep tracking in mm² for candidate pool
+      stickerIndex++;
+
+      if (allPolygons.length % 500 === 0) {
+        console.log(`  Generated ${allPolygons.length} candidates so far...`);
+      }
+    }
+
+    const cappedNote = allPolygons.length >= MAX_CANDIDATE_ITEMS ? ' (capped)' : '';
+    console.log(`Generated candidate pool: ${allPolygons.length} items${cappedNote}, total area: ${currentArea.toFixed(2)} mm²`);
+
+    // Step 3: Pack onto multiple sheets
+    const sheets: SheetPlacement[] = [];
+    let remainingPolygons = [...allPolygons];
+    const singleSheetArea = sheetWidth * sheetHeight; // in mm²
+
+    for (let sheetIndex = 0; sheetIndex < pageCount && remainingPolygons.length > 0; sheetIndex++) {
+      console.log(`\nPacking sheet ${sheetIndex + 1}/${pageCount}...`);
+
+      // Create packer for this sheet (dimensions in inches)
+      const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize);
+      const result = packer.pack(remainingPolygons);
+
+      // Convert to placements (convert positions back to mm)
+      const placements: Placement[] = result.placements.map(p => ({
+        id: p.id,
+        x: p.x * MM_PER_INCH, // Convert back to mm
+        y: p.y * MM_PER_INCH, // Convert back to mm
+        rotation: p.rotation,
+      }));
+
+      // Calculate utilization using actual polygon areas (in inches²)
+      const usedAreaInches = result.placements.reduce((sum, p) => {
+        const poly = allPolygons.find(poly => poly.instanceId === p.id);
+        return sum + (poly ? poly.area : 0);
+      }, 0);
+      const sheetAreaInches = sheetWidthInches * sheetHeightInches;
+      const utilization = (usedAreaInches / sheetAreaInches) * 100;
+
+      sheets.push({
+        sheetIndex,
+        placements,
+        utilization,
+      });
+
+      console.log(`  Sheet ${sheetIndex + 1}: ${placements.length} items, ${utilization.toFixed(1)}% utilization`);
+
+      // Remove placed polygons from remaining pool
+      const placedIds = new Set(result.placements.map(p => p.id));
+      remainingPolygons = remainingPolygons.filter(p => !placedIds.has(p.instanceId));
+
+      console.log(`  Remaining unpacked items: ${remainingPolygons.length}`);
+    }
+
+    // Calculate total utilization (using inches² for consistency)
+    const totalAreaInches = sheetWidthInches * sheetHeightInches * sheets.length;
+    const totalUsedAreaInches = sheets.reduce((sum, sheet) => {
+      return sum + sheet.placements.reduce((itemSum, p) => {
+        const poly = allPolygons.find(poly => poly.instanceId === p.id);
+        return itemSum + (poly ? poly.area : 0); // area is in inches²
+      }, 0);
+    }, 0);
+    const totalUtilization = (totalUsedAreaInches / totalAreaInches) * 100;
+
+    console.log(`Total utilization: ${totalUtilization.toFixed(1)}%`);
+
+    // Calculate quantities
+    const quantities: { [stickerId: string]: number } = {};
+    sheets.forEach(sheet => {
+      sheet.placements.forEach(placement => {
+        const poly = allPolygons.find(p => p.instanceId === placement.id);
+        if (poly) {
+          quantities[poly.stickerId] = (quantities[poly.stickerId] || 0) + 1;
+        }
+      });
+    });
+
+    // Filter out empty sheets
+    const finalSheets = sheets.filter(sheet => sheet.placements.length > 0);
+    if (finalSheets.length < sheets.length) {
+      console.log(`Removed ${sheets.length - finalSheets.length} empty sheets from final result.`);
+    }
+
+    console.log('Final packed quantities:', quantities);
+
+    return {
+      sheets: finalSheets,
+      totalUtilization,
+      quantities,
     };
   }
 }

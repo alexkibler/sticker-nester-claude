@@ -41,7 +41,9 @@
     "@angular/build": "^20.3.10",
     "@angular/cli": "^20.3.10",
     "@angular/compiler-cli": "^20.3.0",
+    "@puppeteer/browsers": "^2.10.13",
     "@types/jasmine": "~5.1.0",
+    "@types/node": "^24.10.1",
     "@types/pdfkit": "^0.17.3",
     "@types/uuid": "^10.0.0",
     "jasmine-core": "~5.9.0",
@@ -50,6 +52,8 @@
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
+    "puppeteer": "^24.30.0",
+    "ts-node": "^10.9.2",
     "typescript": "~5.9.2"
   }
 }

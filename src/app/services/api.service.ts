@@ -23,6 +23,9 @@ export interface NestingApiRequest {
   spacing: number;
   productionMode?: boolean;
   sheetCount?: number;
+  usePolygonPacking?: boolean;
+  cellsPerInch?: number;
+  stepSize?: number;
 }
 
 export interface SheetPlacement {
