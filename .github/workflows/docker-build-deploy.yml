@@ -5,6 +5,7 @@ on:
     branches:
       - main           # Production builds
       - 'feature/**'   # Development builds for all feature/* branches
+      - 'claude/**'    # Development builds for all claude/* branches
   pull_request:
     branches:
       - main
@@ -42,8 +43,8 @@ jobs:
           tags: |
             # Tag as 'latest' for main branch
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            # Tag as 'dev' for all feature/* branches
-            type=raw,value=dev,enable=${{ startsWith(github.ref, 'refs/heads/feature/') }}
+            # Tag as 'dev' for all feature/* and claude/* branches
+            type=raw,value=dev,enable=${{ startsWith(github.ref, 'refs/heads/feature/') || startsWith(github.ref, 'refs/heads/claude/') }}
             # Also tag with commit SHA for traceability
             type=sha
 
@@ -63,7 +64,7 @@ jobs:
         run: echo "Image pushed with digest ${{ steps.meta.outputs.digest }}"
 
       - name: Trigger Watchtower update
-        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feature/') || github.ref == 'refs/heads/main')
+        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feature/') || startsWith(github.ref, 'refs/heads/claude/') || github.ref == 'refs/heads/main')
         run: |
           curl -L -X POST \
             -H "Authorization: Bearer ${{ secrets.WATCHTOWER_API_TOKEN }}" \

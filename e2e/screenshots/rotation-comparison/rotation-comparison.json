@@ -1,0 +1,111 @@
+[
+  {
+    "name": "No Rotation",
+    "rotationCount": 1,
+    "rotations": [
+      0
+    ],
+    "itemsPlaced": 7,
+    "utilization": 6.49388888888889,
+    "timeMs": 809,
+    "rotationCounts": {
+      "0": 7
+    }
+  },
+  {
+    "name": "90° Increments",
+    "rotationCount": 4,
+    "rotations": [
+      0,
+      90,
+      180,
+      270
+    ],
+    "itemsPlaced": 7,
+    "utilization": 6.49388888888889,
+    "timeMs": 682,
+    "rotationCounts": {
+      "0": 7
+    }
+  },
+  {
+    "name": "45° Increments",
+    "rotationCount": 8,
+    "rotations": [
+      0,
+      45,
+      90,
+      135,
+      180,
+      225,
+      270,
+      315
+    ],
+    "itemsPlaced": 7,
+    "utilization": 6.49388888888889,
+    "timeMs": 423,
+    "rotationCounts": {
+      "0": 7
+    }
+  },
+  {
+    "name": "30° Increments",
+    "rotationCount": 12,
+    "rotations": [
+      0,
+      30,
+      60,
+      90,
+      120,
+      150,
+      180,
+      210,
+      240,
+      270,
+      300,
+      330
+    ],
+    "itemsPlaced": 7,
+    "utilization": 6.49388888888889,
+    "timeMs": 389,
+    "rotationCounts": {
+      "0": 7
+    }
+  },
+  {
+    "name": "15° Increments",
+    "rotationCount": 24,
+    "rotations": [
+      0,
+      15,
+      30,
+      45,
+      60,
+      75,
+      90,
+      105,
+      120,
+      135,
+      150,
+      165,
+      180,
+      195,
+      210,
+      225,
+      240,
+      255,
+      270,
+      285,
+      300,
+      315,
+      330,
+      345
+    ],
+    "itemsPlaced": 7,
+    "utilization": 6.49388888888889,
+    "timeMs": 405,
+    "rotationCounts": {
+      "0": 7
+    }
+  }
+]

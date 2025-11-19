@@ -87,7 +87,9 @@ router.post('/nest', async (req: Request, res: Response) => {
       sheetCount,
       usePolygonPacking = false, // New parameter: use polygon packing instead of rectangle packing
       cellsPerInch = 100,         // Grid resolution for polygon packing
-      stepSize = 0.05             // Position search step size for polygon packing
+      stepSize = 0.05,            // Position search step size for polygon packing
+      rotations = [0, 90, 180, 270], // Rotation angles to try (in degrees)
+      packAllItems = true         // Smart packing: true = auto-expand pages, false = fixed pages with fail-fast
     } = req.body;
 
     if (!stickers || stickers.length === 0 || !sheetWidth || !sheetHeight) {
@@ -106,7 +108,9 @@ router.post('/nest', async (req: Request, res: Response) => {
             sheetCount,
             finalSpacing,
             cellsPerInch,
-            stepSize
+            stepSize,
+            rotations,
+            packAllItems
           )
         : nestingService.nestStickersMultiSheet(
             stickers,
@@ -124,7 +128,8 @@ router.post('/nest', async (req: Request, res: Response) => {
             sheetHeight,
             finalSpacing,
             cellsPerInch,
-            stepSize
+            stepSize,
+            rotations
           )
         : nestingService.nestStickers(
             stickers,

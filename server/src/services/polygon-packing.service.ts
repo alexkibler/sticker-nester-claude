@@ -252,6 +252,43 @@ export interface PolygonPackingResult {
 }
 
 /**
+ * Progress callback for packing operations
+ */
+export interface PackingProgress {
+  current: number;
+  total: number;
+  itemId: string;
+  status: 'trying' | 'placed' | 'failed' | 'estimating' | 'warning' | 'expanding';
+  message: string;
+  sheetCount?: number; // Current number of sheets being used
+}
+
+export type ProgressCallback = (progress: PackingProgress) => void;
+
+/**
+ * Detailed failure information
+ */
+export interface PlacementFailure {
+  polygonId: string;
+  positionsTried: number;
+  rotationsTried: number;
+  gridUtilization: number;
+  reason: string;
+}
+
+/**
+ * Space estimation result
+ */
+export interface SpaceEstimate {
+  totalItemArea: number;
+  totalSheetArea: number;
+  estimatedUtilization: number;
+  minimumPagesNeeded: number;
+  canFitInRequestedPages: boolean;
+  warning?: string;
+}
+
+/**
  * PolygonPacker: Main packing algorithm using rasterization overlay
  */
 export class PolygonPacker {
@@ -260,6 +297,7 @@ export class PolygonPacker {
   private readonly spacing: number;
   private readonly stepSize: number; // position search step size in inches
   private readonly rotations: number[]; // rotation angles to try
+  private progressCallback?: ProgressCallback;
 
   constructor(
     widthInches: number,
@@ -267,48 +305,114 @@ export class PolygonPacker {
     spacing: number = 0.0625,
     cellsPerInch: number = 100,
     stepSize: number = 0.05,
-    rotations: number[] = [0, 90, 180, 270]
+    rotations: number[] = [0, 90, 180, 270],
+    progressCallback?: ProgressCallback
   ) {
     this.grid = new RasterGrid(widthInches, heightInches, cellsPerInch);
     this.rasterizer = new PolygonRasterizer(cellsPerInch);
     this.spacing = spacing;
     this.stepSize = stepSize;
     this.rotations = rotations;
+    this.progressCallback = progressCallback;
   }
 
   /**
    * Pack polygons onto the sheet using rasterization overlay algorithm
    */
   pack(polygons: PackablePolygon[]): PolygonPackingResult {
-    console.log(`Starting polygon packing: ${polygons.length} polygons`);
+    console.log(`\n=== Starting polygon packing ===`);
+    console.log(`Polygons: ${polygons.length}`);
+    console.log(`Rotations: ${this.rotations.join(', ')}°`);
+    console.log(`Step size: ${this.stepSize}"`);
+    console.log(`Grid resolution: ${this.grid.getDimensions().cellsPerInch} cells/inch`);
 
     // Sort by area descending (Big Rocks First)
     const sorted = [...polygons].sort((a, b) => b.area - a.area);
 
     const placements: PolygonPlacement[] = [];
     const unplaced: PackablePolygon[] = [];
+    const failures: PlacementFailure[] = [];
 
     const gridDims = this.grid.getDimensions();
+    const startTime = Date.now();
 
     // Try to place each polygon
-    for (const polygon of sorted) {
-      const placement = this.findPlacement(polygon, gridDims);
+    for (let i = 0; i < sorted.length; i++) {
+      const polygon = sorted[i];
+      const itemStartTime = Date.now();
 
-      if (placement) {
-        placements.push(placement);
-        this.grid.markOccupied(placement.cells);
+      // Report progress
+      if (this.progressCallback) {
+        this.progressCallback({
+          current: i + 1,
+          total: sorted.length,
+          itemId: polygon.id,
+          status: 'trying',
+          message: `Trying to place ${polygon.id} (${i + 1}/${sorted.length})...`,
+        });
+      }
+
+      console.log(`\n[${i + 1}/${sorted.length}] Placing ${polygon.id} (${(polygon.width * polygon.height).toFixed(2)} sq in)...`);
+
+      const result = this.findPlacement(polygon, gridDims);
+
+      const itemTime = Date.now() - itemStartTime;
+
+      if (result.placement) {
+        placements.push(result.placement);
+        this.grid.markOccupied(result.placement.cells);
+
         console.log(
-          `  Placed ${polygon.id} at (${placement.x.toFixed(2)}, ${placement.y.toFixed(2)}) rotation ${placement.rotation}°`
+          `  ✓ PLACED at (${result.placement.x.toFixed(2)}, ${result.placement.y.toFixed(2)}) rotation ${result.placement.rotation}° (${itemTime}ms, ${result.positionsTried} positions tried)`
         );
+
+        if (this.progressCallback) {
+          this.progressCallback({
+            current: i + 1,
+            total: sorted.length,
+            itemId: polygon.id,
+            status: 'placed',
+            message: `Placed ${polygon.id} at (${result.placement.x.toFixed(2)}, ${result.placement.y.toFixed(2)})`,
+          });
+        }
       } else {
         unplaced.push(polygon);
-        console.log(`  Failed to place ${polygon.id}`);
+        failures.push(result.failure!);
+
+        console.log(`  ✗ FAILED to place ${polygon.id} (${itemTime}ms)`);
+        console.log(`    Positions tried: ${result.positionsTried}`);
+        console.log(`    Rotations tried: ${result.failure!.rotationsTried}`);
+        console.log(`    Current utilization: ${result.failure!.gridUtilization.toFixed(1)}%`);
+        console.log(`    Reason: ${result.failure!.reason}`);
+
+        if (this.progressCallback) {
+          this.progressCallback({
+            current: i + 1,
+            total: sorted.length,
+            itemId: polygon.id,
+            status: 'failed',
+            message: `Failed to place ${polygon.id}: ${result.failure!.reason}`,
+          });
+        }
       }
     }
 
     const utilization = this.grid.getUtilization();
+    const totalTime = Date.now() - startTime;
 
-    console.log(`Packing complete: ${placements.length}/${polygons.length} placed, ${utilization.toFixed(1)}% utilization`);
+    console.log(`\n=== Packing complete ===`);
+    console.log(`Placed: ${placements.length}/${polygons.length} (${((placements.length / polygons.length) * 100).toFixed(1)}%)`);
+    console.log(`Failed: ${unplaced.length}`);
+    console.log(`Utilization: ${utilization.toFixed(1)}%`);
+    console.log(`Total time: ${totalTime}ms (${(totalTime / 1000).toFixed(1)}s)`);
+    console.log(`Avg time per item: ${(totalTime / polygons.length).toFixed(0)}ms`);
+
+    if (failures.length > 0) {
+      console.log(`\nFailure summary:`);
+      failures.forEach(f => {
+        console.log(`  - ${f.polygonId}: ${f.reason} (tried ${f.positionsTried} positions, ${f.rotationsTried} rotations)`);
+      });
+    }
 
     return {
       placements,
@@ -320,22 +424,39 @@ export class PolygonPacker {
   /**
    * Find a valid placement for a polygon
    * Tries different positions and rotations
+   * Returns detailed information about search attempts
    */
   private findPlacement(
     polygon: PackablePolygon,
     gridDims: { width: number; height: number }
-  ): PolygonPlacement | null {
+  ): {
+    placement: PolygonPlacement | null;
+    positionsTried: number;
+    failure?: PlacementFailure;
+  } {
+    let positionsTried = 0;
+    let rotationsTried = 0;
+    const geometryService = new GeometryService();
+
     // Try each rotation
     for (const rotation of this.rotations) {
+      rotationsTried++;
+
       // Get rotated bounding box to limit search space
-      const geometryService = new GeometryService();
       const rotatedPoints =
         rotation !== 0 ? geometryService.rotatePoints(polygon.points, rotation) : polygon.points;
       const bbox = geometryService.getBoundingBox(rotatedPoints);
 
+      // Check if bounding box even fits
+      if (bbox.width > gridDims.width || bbox.height > gridDims.height) {
+        continue; // Skip this rotation, polygon too large
+      }
+
       // Search grid of positions
-      for (let y = 0; y < gridDims.height - bbox.height; y += this.stepSize) {
-        for (let x = 0; x < gridDims.width - bbox.width; x += this.stepSize) {
+      for (let y = 0; y <= gridDims.height - bbox.height; y += this.stepSize) {
+        for (let x = 0; x <= gridDims.width - bbox.width; x += this.stepSize) {
+          positionsTried++;
+
           // Rasterize polygon at this position and rotation
           const cells = this.rasterizer.rasterizePolygon(polygon.points, x, y, rotation, this.spacing);
 
@@ -343,19 +464,45 @@ export class PolygonPacker {
           if (!this.grid.checkCollision(cells)) {
             // Found valid placement!
             return {
-              id: polygon.id,
-              x,
-              y,
-              rotation,
-              cells,
+              placement: {
+                id: polygon.id,
+                x,
+                y,
+                rotation,
+                cells,
+              },
+              positionsTried,
             };
           }
         }
       }
     }
 
-    // No valid placement found
-    return null;
+    // No valid placement found - determine reason
+    const currentUtilization = this.grid.getUtilization();
+    let reason: string;
+
+    if (polygon.width > gridDims.width || polygon.height > gridDims.height) {
+      reason = `Polygon too large for sheet (${polygon.width.toFixed(2)}" × ${polygon.height.toFixed(2)}" > ${gridDims.width.toFixed(2)}" × ${gridDims.height.toFixed(2)}")`;
+    } else if (currentUtilization > 80) {
+      reason = `Sheet nearly full (${currentUtilization.toFixed(1)}% utilized), no space for polygon`;
+    } else if (positionsTried < 10) {
+      reason = `Polygon doesn't fit in any rotation (tried ${rotationsTried} rotations)`;
+    } else {
+      reason = `No collision-free position found (tried ${positionsTried} positions across ${rotationsTried} rotations)`;
+    }
+
+    return {
+      placement: null,
+      positionsTried,
+      failure: {
+        polygonId: polygon.id,
+        positionsTried,
+        rotationsTried,
+        gridUtilization: currentUtilization,
+        reason,
+      },
+    };
   }
 
   /**
@@ -364,4 +511,56 @@ export class PolygonPacker {
   getUtilization(): number {
     return this.grid.getUtilization();
   }
+}
+
+/**
+ * Estimate if items can fit in requested pages
+ * Uses conservative estimates to fail fast
+ */
+export function estimateSpaceRequirements(
+  polygons: PackablePolygon[],
+  sheetWidth: number,
+  sheetHeight: number,
+  requestedPages: number,
+  spacing: number = 0.0625
+): SpaceEstimate {
+  // Calculate total area of all items
+  const totalItemArea = polygons.reduce((sum, p) => sum + p.area, 0);
+
+  // Calculate available sheet area
+  const singleSheetArea = sheetWidth * sheetHeight;
+  const totalSheetArea = singleSheetArea * requestedPages;
+
+  // Conservative packing efficiency estimates based on empirical data
+  // Polygon packing typically achieves 50-70% utilization
+  // We use 60% as a reasonable estimate for early detection
+  const EXPECTED_EFFICIENCY = 0.60;
+  const CONSERVATIVE_EFFICIENCY = 0.50; // Fail-fast threshold
+
+  const estimatedUtilization = totalItemArea / totalSheetArea;
+  const conservativeUtilization = totalItemArea / (totalSheetArea * CONSERVATIVE_EFFICIENCY);
+
+  // Estimate minimum pages needed (conservative)
+  const minimumPagesNeeded = Math.ceil(totalItemArea / (singleSheetArea * EXPECTED_EFFICIENCY));
+
+  // Determine if items can fit
+  const canFitInRequestedPages = conservativeUtilization <= 1.0;
+
+  // Generate warning if needed
+  let warning: string | undefined;
+  if (!canFitInRequestedPages) {
+    const shortage = Math.ceil(minimumPagesNeeded - requestedPages);
+    warning = `Insufficient space: ${polygons.length} items need ~${minimumPagesNeeded} pages (requested ${requestedPages}). Add ${shortage} more page(s).`;
+  } else if (estimatedUtilization > 0.80) {
+    warning = `Tight fit warning: ${polygons.length} items will fill ${(estimatedUtilization * 100).toFixed(0)}% of ${requestedPages} page(s). Some items may not fit.`;
+  }
+
+  return {
+    totalItemArea,
+    totalSheetArea,
+    estimatedUtilization,
+    minimumPagesNeeded,
+    canFitInRequestedPages,
+    warning,
+  };
 }
