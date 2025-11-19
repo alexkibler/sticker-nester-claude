@@ -1,0 +1,19 @@
+{
+  "name": "mosaic-verification-scripts",
+  "version": "1.0.0",
+  "description": "Automated layout verification scripts for Mosaic",
+  "type": "module",
+  "scripts": {
+    "verify": "tsx verify-layout.ts"
+  },
+  "dependencies": {
+    "form-data": "^4.0.5",
+    "node-fetch": "^2.7.0",
+    "puppeteer": "^23.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

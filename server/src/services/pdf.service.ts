@@ -37,32 +37,105 @@ export class PdfService {
           const wPoints = sticker.width * 72;
           const hPoints = sticker.height * 72;
 
-          // Draw image
+          // Draw image with rotation support
           try {
-            doc.image(sticker.imageBuffer, xPoints, yPoints, {
-              width: wPoints,
-              height: hPoints
-            });
+            // STRICT STATE ISOLATION: Save state before any transformations
+            doc.save();
 
-            // Draw cut line (red)
-            if (sticker.points && sticker.points.length > 0) {
-              doc.save();
-              doc.strokeColor('red');
-              doc.lineWidth(0.5);
+            // Step 1: Translate to placement position (absolute from packer)
+            doc.translate(xPoints, yPoints);
 
-              const scaledPoints = sticker.points.map(p => ({
-                x: xPoints + (p.x / sticker.width) * wPoints,
-                y: yPoints + (p.y / sticker.height) * hPoints
-              }));
+            // Step 2: Handle rotation with center-based pivot
+            if (placement.rotation && placement.rotation !== 0) {
+              const is90DegRotation = Math.abs(Math.abs(placement.rotation) - 90) < 0.1;
 
-              doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
-              for (let i = 1; i < scaledPoints.length; i++) {
-                doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+              if (is90DegRotation) {
+                // For 90-degree rotations: rotate around center of ROTATED bounding box
+                // Rotated box dimensions are swapped: hPoints × wPoints
+                // Center of rotated box is at (hPoints/2, wPoints/2) from placement origin
+                doc.translate(hPoints / 2, wPoints / 2);
+                doc.rotate(placement.rotation, { origin: [0, 0] });
+
+                // Draw image centered using ORIGINAL dimensions
+                doc.image(sticker.imageBuffer, -wPoints / 2, -hPoints / 2, {
+                  width: wPoints,
+                  height: hPoints
+                });
+
+                // Draw cut line (red)
+                if (sticker.points && sticker.points.length > 0) {
+                  doc.strokeColor('red');
+                  doc.lineWidth(0.5);
+
+                  const scaledPoints = sticker.points.map(p => ({
+                    x: (p.x / sticker.width) * wPoints - wPoints / 2,
+                    y: (p.y / sticker.height) * hPoints - hPoints / 2
+                  }));
+
+                  doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                  for (let i = 1; i < scaledPoints.length; i++) {
+                    doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                  }
+                  doc.closePath();
+                  doc.stroke();
+                }
+              } else {
+                // For arbitrary angles: rotate around center normally
+                doc.translate(wPoints / 2, hPoints / 2);
+                doc.rotate(placement.rotation, { origin: [0, 0] });
+
+                // Draw image offset by negative half dimensions (no swap for non-90° rotations)
+                doc.image(sticker.imageBuffer, -wPoints / 2, -hPoints / 2, {
+                  width: wPoints,
+                  height: hPoints
+                });
+
+                // Draw cut line (red)
+                if (sticker.points && sticker.points.length > 0) {
+                  doc.strokeColor('red');
+                  doc.lineWidth(0.5);
+
+                  const scaledPoints = sticker.points.map(p => ({
+                    x: (p.x / sticker.width) * wPoints - wPoints / 2,
+                    y: (p.y / sticker.height) * hPoints - hPoints / 2
+                  }));
+
+                  doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                  for (let i = 1; i < scaledPoints.length; i++) {
+                    doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                  }
+                  doc.closePath();
+                  doc.stroke();
+                }
               }
-              doc.closePath();
-              doc.stroke();
-              doc.restore();
+            } else {
+              // No rotation: Draw at origin (0, 0)
+              doc.image(sticker.imageBuffer, 0, 0, {
+                width: wPoints,
+                height: hPoints
+              });
+
+              // Draw cut line (red)
+              if (sticker.points && sticker.points.length > 0) {
+                doc.strokeColor('red');
+                doc.lineWidth(0.5);
+
+                const scaledPoints = sticker.points.map(p => ({
+                  x: (p.x / sticker.width) * wPoints,
+                  y: (p.y / sticker.height) * hPoints
+                }));
+
+                doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                for (let i = 1; i < scaledPoints.length; i++) {
+                  doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                }
+                doc.closePath();
+                doc.stroke();
+              }
             }
+
+            // STRICT STATE ISOLATION: Restore state after rendering this sticker
+            doc.restore();
           } catch (err) {
             console.error('Error drawing sticker:', err);
           }
@@ -113,42 +186,118 @@ export class PdfService {
           }
 
           sheet.placements.forEach(placement => {
-            // Extract original sticker ID (remove _copyN suffix)
-            const originalId = placement.id.replace(/_copy\d+$/, '');
+            // Extract original sticker ID (remove instance suffix _0, _1, etc.)
+            const originalId = placement.id.replace(/_\d+$/, '');
             const sticker = stickers.get(originalId);
-            if (!sticker) return;
+            if (!sticker) {
+              console.warn(`Sticker not found for placement ID: ${placement.id}, tried: ${originalId}`);
+              return;
+            }
 
             const xPoints = placement.x * 72;
             const yPoints = placement.y * 72;
             const wPoints = sticker.width * 72;
             const hPoints = sticker.height * 72;
 
-            // Draw image
+            // Draw image with rotation support
             try {
-              doc.image(sticker.imageBuffer, xPoints, yPoints, {
-                width: wPoints,
-                height: hPoints
-              });
+              // STRICT STATE ISOLATION: Save state before any transformations
+              doc.save();
 
-              // Draw cut line (red)
-              if (sticker.points && sticker.points.length > 0) {
-                doc.save();
-                doc.strokeColor('red');
-                doc.lineWidth(0.5);
+              // Step 1: Translate to placement position (absolute from packer)
+              doc.translate(xPoints, yPoints);
 
-                const scaledPoints = sticker.points.map(p => ({
-                  x: xPoints + (p.x / sticker.width) * wPoints,
-                  y: yPoints + (p.y / sticker.height) * hPoints
-                }));
+              // Step 2: Handle rotation with center-based pivot
+              if (placement.rotation && placement.rotation !== 0) {
+                const is90DegRotation = Math.abs(Math.abs(placement.rotation) - 90) < 0.1;
 
-                doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
-                for (let i = 1; i < scaledPoints.length; i++) {
-                  doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                if (is90DegRotation) {
+                  // For 90-degree rotations: rotate around center of ROTATED bounding box
+                  // Rotated box dimensions are swapped: hPoints × wPoints
+                  // Center of rotated box is at (hPoints/2, wPoints/2) from placement origin
+                  doc.translate(hPoints / 2, wPoints / 2);
+                  doc.rotate(placement.rotation, { origin: [0, 0] });
+
+                  // Draw image centered using ORIGINAL dimensions
+                  doc.image(sticker.imageBuffer, -wPoints / 2, -hPoints / 2, {
+                    width: wPoints,
+                    height: hPoints
+                  });
+
+                  // Draw cut line (red)
+                  if (sticker.points && sticker.points.length > 0) {
+                    doc.strokeColor('red');
+                    doc.lineWidth(0.5);
+
+                    const scaledPoints = sticker.points.map(p => ({
+                      x: (p.x / sticker.width) * wPoints - wPoints / 2,
+                      y: (p.y / sticker.height) * hPoints - hPoints / 2
+                    }));
+
+                    doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                    for (let i = 1; i < scaledPoints.length; i++) {
+                      doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                    }
+                    doc.closePath();
+                    doc.stroke();
+                  }
+                } else {
+                  // For arbitrary angles: rotate around center normally
+                  doc.translate(wPoints / 2, hPoints / 2);
+                  doc.rotate(placement.rotation, { origin: [0, 0] });
+
+                  // Draw image offset by negative half dimensions (no swap for non-90° rotations)
+                  doc.image(sticker.imageBuffer, -wPoints / 2, -hPoints / 2, {
+                    width: wPoints,
+                    height: hPoints
+                  });
+
+                  // Draw cut line (red)
+                  if (sticker.points && sticker.points.length > 0) {
+                    doc.strokeColor('red');
+                    doc.lineWidth(0.5);
+
+                    const scaledPoints = sticker.points.map(p => ({
+                      x: (p.x / sticker.width) * wPoints - wPoints / 2,
+                      y: (p.y / sticker.height) * hPoints - hPoints / 2
+                    }));
+
+                    doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                    for (let i = 1; i < scaledPoints.length; i++) {
+                      doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                    }
+                    doc.closePath();
+                    doc.stroke();
+                  }
                 }
-                doc.closePath();
-                doc.stroke();
-                doc.restore();
+              } else {
+                // No rotation: Draw at origin (0, 0)
+                doc.image(sticker.imageBuffer, 0, 0, {
+                  width: wPoints,
+                  height: hPoints
+                });
+
+                // Draw cut line (red)
+                if (sticker.points && sticker.points.length > 0) {
+                  doc.strokeColor('red');
+                  doc.lineWidth(0.5);
+
+                  const scaledPoints = sticker.points.map(p => ({
+                    x: (p.x / sticker.width) * wPoints,
+                    y: (p.y / sticker.height) * hPoints
+                  }));
+
+                  doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                  for (let i = 1; i < scaledPoints.length; i++) {
+                    doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                  }
+                  doc.closePath();
+                  doc.stroke();
+                }
               }
+
+              // STRICT STATE ISOLATION: Restore state after rendering this sticker
+              doc.restore();
             } catch (err) {
               console.error('Error drawing sticker:', err);
             }

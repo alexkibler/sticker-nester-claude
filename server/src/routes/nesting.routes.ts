@@ -27,18 +27,30 @@ router.post('/process', upload.array('images', 20), async (req: Request, res: Re
         // Calculate bounding box of the traced path (ignoring transparent background)
         const bbox = geometryService.getBoundingBox(simplified);
 
-        // Normalize path coordinates relative to bounding box origin
-        // and convert to inches (300 DPI)
+        // Convert bounding box to inches (300 DPI)
+        const widthInches = bbox.width / 300;
+        const heightInches = bbox.height / 300;
+
+        // Scale image so largest dimension is 3 inches
+        const maxDimension = Math.max(widthInches, heightInches);
+        const scaleFactor = 3.0 / maxDimension;
+
+        // Calculate final dimensions
+        const finalWidth = widthInches * scaleFactor;
+        const finalHeight = heightInches * scaleFactor;
+
+        // Normalize path coordinates relative to bounding box origin,
+        // convert to inches (300 DPI), and apply scale factor
         const normalizedPath = simplified.map(p => ({
-          x: (p.x - bbox.minX) / 300,
-          y: (p.y - bbox.minY) / 300
+          x: ((p.x - bbox.minX) / 300) * scaleFactor,
+          y: ((p.y - bbox.minY) / 300) * scaleFactor
         }));
 
         return {
           id: file.originalname,
           path: normalizedPath,
-          width: bbox.width / 300, // Convert pixels to inches at 300 DPI
-          height: bbox.height / 300
+          width: finalWidth,
+          height: finalHeight
         };
       })
     );
@@ -61,14 +73,14 @@ router.post('/nest', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    // Use multi-sheet nesting if in production mode
-    if (productionMode && sheetCount && sheetCount > 1) {
+    // Use multi-sheet nesting if in production mode with sheetCount specified
+    if (productionMode && sheetCount !== undefined) {
       const result = nestingService.nestStickersMultiSheet(
         stickers,
         sheetWidth,
         sheetHeight,
         sheetCount,
-        spacing || 0.0625
+        spacing !== undefined ? spacing : 0.0625
       );
       res.json(result);
     } else {
@@ -76,7 +88,7 @@ router.post('/nest', async (req: Request, res: Response) => {
         stickers,
         sheetWidth,
         sheetHeight,
-        spacing || 0.0625
+        spacing !== undefined ? spacing : 0.0625
       );
       res.json(result);
     }
