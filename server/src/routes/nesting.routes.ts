@@ -74,32 +74,64 @@ router.post('/process', upload.array('images', 100), async (req: Request, res: R
 
 /**
  * Run nesting algorithm
+ * Supports both rectangle-based (MaxRects) and polygon-based (rasterization overlay) packing
  */
 router.post('/nest', async (req: Request, res: Response) => {
   try {
-    const { stickers, sheetWidth, sheetHeight, spacing, productionMode, sheetCount } = req.body;
+    const {
+      stickers,
+      sheetWidth,
+      sheetHeight,
+      spacing,
+      productionMode,
+      sheetCount,
+      usePolygonPacking = false, // New parameter: use polygon packing instead of rectangle packing
+      cellsPerInch = 100,         // Grid resolution for polygon packing
+      stepSize = 0.05             // Position search step size for polygon packing
+    } = req.body;
 
     if (!stickers || stickers.length === 0 || !sheetWidth || !sheetHeight) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
+    const finalSpacing = spacing !== undefined ? spacing : 0.0625;
+
     // Use multi-sheet nesting if in production mode with sheetCount specified
     if (productionMode && sheetCount !== undefined) {
-      const result = nestingService.nestStickersMultiSheet(
-        stickers,
-        sheetWidth,
-        sheetHeight,
-        sheetCount,
-        spacing !== undefined ? spacing : 0.0625
-      );
+      const result = usePolygonPacking
+        ? nestingService.nestStickersMultiSheetPolygon(
+            stickers,
+            sheetWidth,
+            sheetHeight,
+            sheetCount,
+            finalSpacing,
+            cellsPerInch,
+            stepSize
+          )
+        : nestingService.nestStickersMultiSheet(
+            stickers,
+            sheetWidth,
+            sheetHeight,
+            sheetCount,
+            finalSpacing
+          );
       res.json(result);
     } else {
-      const result = nestingService.nestStickers(
-        stickers,
-        sheetWidth,
-        sheetHeight,
-        spacing !== undefined ? spacing : 0.0625
-      );
+      const result = usePolygonPacking
+        ? nestingService.nestStickersPolygon(
+            stickers,
+            sheetWidth,
+            sheetHeight,
+            finalSpacing,
+            cellsPerInch,
+            stepSize
+          )
+        : nestingService.nestStickers(
+            stickers,
+            sheetWidth,
+            sheetHeight,
+            finalSpacing
+          );
       res.json(result);
     }
   } catch (error: any) {
