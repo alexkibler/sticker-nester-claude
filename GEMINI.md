@@ -26,8 +26,8 @@ The frontend and backend are in separate directories (`src` and `server` respect
 - **Backend:** `cd server && npm install`
 
 **2. Run Development Servers:**
-- **Backend (port 3000):** `cd server && npm run dev`
-- **Frontend (port 4200):** `npm start`
+- **Backend (port 3001):** `cd server && npm run dev`
+- **Frontend (port 4201):** `npm start`
 
 ### Production
 
