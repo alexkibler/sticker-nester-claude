@@ -39,7 +39,7 @@ app.use('/api/pdf', pdfRouter);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', message: 'Sticker Nester API is running' });
+  res.json({ status: 'ok', message: 'Mosaic API is running' });
 });
 
 // Serve static files from Angular frontend (production mode)
@@ -65,7 +65,7 @@ app.use((err: Error, req: Request, res: Response, next: any) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`⚡️ Server is running on port ${PORT}`);
-  console.log(`🎨 Sticker Nester API ready at http://localhost:${PORT}/api`);
+  console.log(`🎨 Mosaic API ready at http://localhost:${PORT}/api`);
 });
 
 export default app;

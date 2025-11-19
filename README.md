@@ -1,4 +1,4 @@
-# Sticker Nester - Full-Stack Sticker Layout and Nesting Application
+# Mosaic - Full-Stack Sticker Layout and Nesting Application
 
 A full-stack web application for optimizing irregular sticker layouts on print sheets. The system uses intelligent nesting algorithms to efficiently pack custom sticker shapes, minimizing material waste for small business print production.
 
@@ -107,10 +107,10 @@ docker-compose up -d
 **Manual Docker Build:**
 ```bash
 # Build image
-docker build -t sticker-nester .
+docker build -t mosaic .
 
 # Run container
-docker run -p 8080:80 sticker-nester
+docker run -p 8080:80 mosaic
 ```
 
 ## Testing

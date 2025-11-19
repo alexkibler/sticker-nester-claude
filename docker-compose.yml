@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  sticker-nester:
+  mosaic:
     build:
       context: .
       dockerfile: Dockerfile
@@ -10,4 +10,4 @@ services:
     environment:
       - NODE_ENV=production
     restart: unless-stopped
-    container_name: sticker-nester
+    container_name: mosaic

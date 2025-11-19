@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "sticker-nesting": {
+    "mosaic": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -61,10 +61,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "sticker-nesting:build:production"
+              "buildTarget": "mosaic:build:production"
             },
             "development": {
-              "buildTarget": "sticker-nesting:build:development",
+              "buildTarget": "mosaic:build:development",
               "port": 4201,
               "proxyConfig": "proxy.conf.json"
             }

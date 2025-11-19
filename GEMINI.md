@@ -41,7 +41,7 @@ The frontend and backend are in separate directories (`src` and `server` respect
 ### Docker
 
 - **Using Docker Compose:** `docker-compose up -d` (application will be available at http://localhost:8080)
-- **Manual Build:** `docker build -t sticker-nester .` and then `docker run -p 8080:80 sticker-nester`
+- **Manual Build:** `docker build -t mosaic .` and then `docker run -p 8080:80 mosaic`
 
 ## Testing
 

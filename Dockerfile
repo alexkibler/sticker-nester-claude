@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for Full Stack Sticker Nester Application
+# Multi-stage Dockerfile for Full Stack Mosaic Application
 
 # Stage 1: Build Angular Frontend
 FROM node:20-alpine AS frontend-builder

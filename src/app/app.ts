@@ -45,7 +45,7 @@ import { SheetPlacement } from './services/api.service';
 })
 export class App implements OnInit, OnDestroy {
   // State signals
-  protected readonly title = signal('Sticker Nester');
+  protected readonly title = signal('Mosaic');
   stickers: StickerSource[] = [];
   placements: Placement[] = [];
   sheets: SheetPlacement[] = [];

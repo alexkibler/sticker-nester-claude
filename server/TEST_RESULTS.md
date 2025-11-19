@@ -1,4 +1,4 @@
-# Sticker Nester Test Results
+# Mosaic Test Results
 
 ## Test Coverage Summary
 
