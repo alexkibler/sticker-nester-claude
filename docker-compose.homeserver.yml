@@ -1,0 +1,80 @@
+# ============================================================================
+# DOCKER COMPOSE CONFIGURATION FOR HOME SERVER
+# ============================================================================
+# This file contains the services you need to ADD to your existing
+# docker-compose.yml at: /Volumes/1TB/Repos/nginx-proxy-manager/docker-compose.yml
+#
+# INSTRUCTIONS:
+# 1. Replace the existing "mosaic:" service with the two services below
+# 2. Add the "watchtower:" service at the bottom
+# 3. Keep all your other services unchanged
+# ============================================================================
+
+services:
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # MOSAIC - PRODUCTION (mosaic.alexkibler.com)
+  # ──────────────────────────────────────────────────────────────────────────
+  mosaic:
+    image: ghcr.io/alexkibler/sticker-nester-claude:latest
+    container_name: mosaic
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: always
+    ports:
+      - "8084:3000"
+    networks:
+      - default
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # MOSAIC-DEV - DEVELOPMENT (mosaic-dev.alexkibler.com)
+  # ──────────────────────────────────────────────────────────────────────────
+  mosaic-dev:
+    image: ghcr.io/alexkibler/sticker-nester-claude:dev
+    container_name: mosaic-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    restart: always
+    ports:
+      - "8085:3000"  # Different port for dev
+    networks:
+      - default
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # WATCHTOWER - AUTO-UPDATE CONTAINERS
+  # ──────────────────────────────────────────────────────────────────────────
+  # Automatically pulls new images from ghcr.io and restarts containers
+  # Checks every 5 minutes (300 seconds)
+  # ──────────────────────────────────────────────────────────────────────────
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # Check for updates every 5 minutes
+      - WATCHTOWER_POLL_INTERVAL=300
+      # Only update containers with the watchtower.enable label
+      - WATCHTOWER_LABEL_ENABLE=true
+      # Clean up old images after updating
+      - WATCHTOWER_CLEANUP=true
+      # Show detailed logs
+      - WATCHTOWER_DEBUG=true
+      # Include stopped containers in monitoring
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      # Remove old images
+      - WATCHTOWER_REMOVE_VOLUMES=false
+    networks:
+      - default
+
+networks:
+  default:
+    name: nginx-proxy-manager_default
+    driver: bridge

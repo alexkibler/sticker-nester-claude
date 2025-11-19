@@ -19,6 +19,7 @@ Thumbs.db
 # Git
 .git/
 .gitignore
+.github/
 
 # Build outputs (will be rebuilt in container)
 dist/
