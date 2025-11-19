@@ -307,6 +307,28 @@ import { FormsModule } from '@angular/forms';
       margin: 5px 0;
       color: #666;
     }
+
+    @media (max-width: 1024px) {
+      .control-panel {
+        max-width: 100%;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .control-panel {
+        padding: 15px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .control-panel {
+        padding: 10px;
+      }
+
+      h3 {
+        font-size: 16px;
+      }
+    }
   `]
 })
 export class ControlPanelComponent {
