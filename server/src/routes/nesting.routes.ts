@@ -27,30 +27,32 @@ router.post('/process', upload.array('images', 100), async (req: Request, res: R
         // Calculate bounding box of the traced path (ignoring transparent background)
         const bbox = geometryService.getBoundingBox(simplified);
 
-        // Convert bounding box to inches (300 DPI)
-        const widthInches = bbox.width / 300;
-        const heightInches = bbox.height / 300;
+        // Convert bounding box to millimeters (300 DPI -> pixels to inches -> inches to mm)
+        const MM_PER_INCH = 25.4;
+        const widthMM = (bbox.width / 300) * MM_PER_INCH;
+        const heightMM = (bbox.height / 300) * MM_PER_INCH;
 
-        // Scale image so largest dimension is 3 inches
-        const maxDimension = Math.max(widthInches, heightInches);
-        const scaleFactor = 3.0 / maxDimension;
+        // Scale image so largest dimension is 76.2mm (3 inches)
+        const maxDimensionMM = Math.max(widthMM, heightMM);
+        const targetMaxMM = 76.2; // 3 inches in mm
+        const scaleFactor = targetMaxMM / maxDimensionMM;
 
-        // Calculate final dimensions
-        const finalWidth = widthInches * scaleFactor;
-        const finalHeight = heightInches * scaleFactor;
+        // Calculate final dimensions in mm
+        const finalWidthMM = widthMM * scaleFactor;
+        const finalHeightMM = heightMM * scaleFactor;
 
         // Normalize path coordinates relative to bounding box origin,
-        // convert to inches (300 DPI), and apply scale factor
+        // convert to mm (300 DPI -> inches -> mm), and apply scale factor
         const normalizedPath = simplified.map(p => ({
-          x: ((p.x - bbox.minX) / 300) * scaleFactor,
-          y: ((p.y - bbox.minY) / 300) * scaleFactor
+          x: (((p.x - bbox.minX) / 300) * MM_PER_INCH) * scaleFactor,
+          y: (((p.y - bbox.minY) / 300) * MM_PER_INCH) * scaleFactor
         }));
 
         return {
           id: file.originalname,
           path: normalizedPath,
-          width: finalWidth,
-          height: finalHeight
+          width: finalWidthMM,
+          height: finalHeightMM
         };
       })
     );

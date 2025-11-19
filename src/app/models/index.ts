@@ -5,3 +5,4 @@
 export * from './geometry.types';
 export * from './sticker.interface';
 export * from './nesting.interface';
+export * from './sheet-size.interface';
