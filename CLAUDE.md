@@ -49,13 +49,41 @@ npm run test:verbose     # Detailed test output
 ```
 
 ### Docker Deployment
+
+**IMPORTANT**: This project does NOT have a local docker-compose.yml. All deployment happens from `/Volumes/1TB/Repos/nginx-proxy-manager`.
+
+**Deployment Location**: `/Volumes/1TB/Repos/nginx-proxy-manager/docker-compose.yml`
+
+**How to Deploy**:
 ```bash
-# Backend runs on port 3000 in production
-docker-compose up -d     # Start on port 8084
-docker build -t mosaic . # Manual build
+# Navigate to nginx-proxy-manager directory
+cd /Volumes/1TB/Repos/nginx-proxy-manager
+
+# Build and deploy the mosaic service
+docker-compose up -d mosaic
+
+# Or rebuild if needed
+docker-compose up -d --build mosaic
 ```
 
-**Important**: The dev proxy (`proxy.conf.json`) routes `/api/*` to `http://localhost:3001`. Production uses port 3000.
+**Service Configuration** (in nginx-proxy-manager's docker-compose.yml):
+- **Service name**: `mosaic` (container name: `mosaic`)
+- **Port mapping**: `8084:3000` (external:internal)
+- **Build context**: `/Volumes/1TB/Repos/sticker-nester-claude-1`
+- **Environment**: `NODE_ENV=production`, `PORT=3000`
+- **Network**: `nginx-proxy-manager_default`
+
+**Accessing the Application**:
+- Frontend: http://localhost:8084/
+- API: http://localhost:8084/api/
+- Health check: http://localhost:8084/api/health
+
+**Future Plans**:
+- Migrate to CI/CD pipeline via GitHub Actions
+- Deploy by pulling images from container registry (Docker Hub or GitHub Container Registry)
+- Automate build and deployment process
+
+**Development Note**: The dev proxy (`proxy.conf.json`) routes `/api/*` to `http://localhost:3001`. Production uses port 3000.
 
 ## Architecture & Key Concepts
 
@@ -175,11 +203,11 @@ docker build -t mosaic . # Manual build
 
 ## Testing
 
-**Backend**: 31 tests total (20 unit + 11 integration)
+**Backend**: 31 tests total (20 unit + 11 integration) - **All passing!**
 - Run via Jest
 - Located in `server/src/__tests__/`
-- See `server/TEST_RESULTS.md` for current status
-- 6 integration tests need adjustment for MaxRects expectations (currently fail expecting greedy algorithm behavior)
+- See `server/TEST_RESULTS.md` for detailed results
+- Includes comprehensive integration tests for MaxRects algorithm with collision detection verification
 
 **Frontend**: Karma + Jasmine
 - Minimal test coverage currently
