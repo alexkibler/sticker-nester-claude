@@ -6,7 +6,7 @@ import { nestingRouter } from './routes/nesting.routes';
 import { pdfRouter } from './routes/pdf.routes';
 
 const app: Express = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
@@ -40,6 +40,17 @@ app.use('/api/pdf', pdfRouter);
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'Sticker Nester API is running' });
+});
+
+// Serve static files from Angular frontend (production mode)
+const publicPath = path.join(__dirname, '../public');
+app.use(express.static(publicPath));
+
+// All non-API routes should serve the Angular app
+app.get('*', (req: Request, res: Response) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  }
 });
 
 // Error handling middleware

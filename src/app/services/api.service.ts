@@ -54,7 +54,10 @@ export interface PdfGenerationRequest {
 })
 export class ApiService {
   private http = inject(HttpClient);
-  private baseUrl = 'http://localhost:3000/api';
+  // Use relative URL in production, absolute in development
+  private baseUrl = window.location.hostname === 'localhost'
+    ? 'http://localhost:3001/api'
+    : '/api';
 
   /**
    * Process uploaded images and extract vector paths

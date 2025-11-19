@@ -7,7 +7,7 @@
       "type": "chrome",
       "request": "launch",
       "preLaunchTask": "npm: start",
-      "url": "http://localhost:4200/"
+      "url": "http://localhost:4201/"
     },
     {
       "name": "ng test",
@@ -15,6 +15,19 @@
       "request": "launch",
       "preLaunchTask": "npm: test",
       "url": "http://localhost:9876/debug.html"
+    },
+    {
+      "name": "Start Backend",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}/server"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Start App",
+      "configurations": ["ng serve", "Start Backend"]
     }
   ]
 }

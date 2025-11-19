@@ -64,7 +64,8 @@
               "buildTarget": "sticker-nesting:build:production"
             },
             "development": {
-              "buildTarget": "sticker-nesting:build:development"
+              "buildTarget": "sticker-nesting:build:development",
+              "port": 4201
             }
           },
           "defaultConfiguration": "development"
