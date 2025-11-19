@@ -1,0 +1,71 @@
+{
+  "testDate": "2025-11-19T20:48:51.633Z",
+  "stickerCount": 26,
+  "targetSheets": 3,
+  "rectanglePacking": {
+    "sheets": 3,
+    "totalItems": 3,
+    "totalUtilization": 117.96296296296298,
+    "quantities": {
+      "heart-3": 1,
+      "heart-2": 1,
+      "heart-1": 1
+    },
+    "perSheet": [
+      {
+        "sheet": 1,
+        "items": 1,
+        "utilization": 144.44444444444449
+      },
+      {
+        "sheet": 2,
+        "items": 1,
+        "utilization": 117.00000000000004
+      },
+      {
+        "sheet": 3,
+        "items": 1,
+        "utilization": 92.44444444444447
+      }
+    ],
+    "timeMs": 31
+  },
+  "polygonPacking": {
+    "sheets": 1,
+    "totalItems": 23,
+    "totalUtilization": 17.954282407407412,
+    "quantities": {
+      "star-5pt-4": 1,
+      "hexagon-4": 1,
+      "triangle-4": 1,
+      "star-5pt-3": 1,
+      "star-6pt-3": 1,
+      "hexagon-3": 1,
+      "pentagon-3": 1,
+      "octagon-3": 1,
+      "triangle-3": 1,
+      "star-5pt-6": 1,
+      "star-5pt-2": 1,
+      "star-6pt-2": 1,
+      "hexagon-2": 1,
+      "pentagon-2": 1,
+      "octagon-2": 1,
+      "triangle-2": 1,
+      "star-5pt-5": 1,
+      "star-5pt-1": 1,
+      "star-6pt-1": 1,
+      "hexagon-1": 1,
+      "pentagon-1": 1,
+      "octagon-1": 1,
+      "triangle-1": 1
+    },
+    "perSheet": [
+      {
+        "sheet": 1,
+        "items": 23,
+        "utilization": 53.86284722222223
+      }
+    ],
+    "timeMs": 191258
+  }
+}
