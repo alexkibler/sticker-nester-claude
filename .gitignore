@@ -39,6 +39,10 @@ testem.log
 __screenshots__/
 scripts/node_modules/
 
+# E2E test logs
+e2e-backend.log
+e2e-frontend.log
+
 # System files
 .DS_Store
 Thumbs.db
