@@ -24,14 +24,18 @@ router.post('/generate', upload.array('images', 20), async (req: Request, res: R
     const parsedStickers = JSON.parse(stickers);
 
     // Create sticker map with images
+    // Files are uploaded with sticker ID as the filename
     const stickerMap = new Map<string, Sticker & { imageBuffer: Buffer }>();
-    files.forEach((file, index) => {
-      const sticker = parsedStickers[index];
+    files.forEach((file) => {
+      // The original filename should match a sticker ID
+      const sticker = parsedStickers.find((s: any) => s.id === file.originalname);
       if (sticker) {
         stickerMap.set(sticker.id, {
           ...sticker,
           imageBuffer: file.buffer
         });
+      } else {
+        console.warn(`No sticker found for file: ${file.originalname}`);
       }
     });
 

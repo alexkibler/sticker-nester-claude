@@ -153,8 +153,8 @@ export class App implements OnInit, OnDestroy {
     this.sheets = [];
 
     try {
-      // Call backend API for nesting
-      const response = await this.apiService.nestStickers({
+      // Prepare request payload
+      const requestPayload: any = {
         stickers: this.stickers.map(s => ({
           id: s.id,
           points: s.simplifiedPath,
@@ -166,7 +166,33 @@ export class App implements OnInit, OnDestroy {
         spacing: this.config.spacing,
         productionMode: this.config.productionMode,
         sheetCount: this.config.sheetCount
-      });
+      };
+
+      // Add quantities for production mode
+      if (this.config.productionMode) {
+        requestPayload.quantities = {};
+
+        // Calculate total available area
+        const totalSheetArea = this.config.sheetWidth * this.config.sheetHeight * this.config.sheetCount;
+
+        // Calculate total sticker area (sum of all unique stickers)
+        const totalStickerArea = this.stickers.reduce((sum, s) =>
+          sum + (s.inputDimensions.width * s.inputDimensions.height), 0);
+
+        // Estimate how many copies of each sticker set we can fit
+        // Aim for 100% utilization - the packer will skip items that don't fit
+        const estimatedCopies = Math.max(1, Math.ceil(totalSheetArea / totalStickerArea));
+
+        // Set quantities: use user-specified if available, otherwise use estimated copies
+        this.stickers.forEach(s => {
+          requestPayload.quantities[s.id] = this.quantities[s.id] || estimatedCopies;
+        });
+
+        console.log(`Auto-calculated quantities: ${estimatedCopies} copies of each sticker to fill ${this.config.sheetCount} sheets`);
+      }
+
+      // Call backend API for nesting
+      const response = await this.apiService.nestStickers(requestPayload);
 
       // Handle multi-sheet response
       if (response.sheets && response.sheets.length > 0) {

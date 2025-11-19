@@ -45,7 +45,8 @@ export class NestingService {
     sheetWidth: number,
     sheetHeight: number,
     quantities: { [stickerId: string]: number },
-    spacing: number = 0.0625
+    spacing: number = 0.0625,
+    maxSheets: number = 5
   ): MultiSheetResult {
     console.log(`Multi-sheet nesting: ${stickers.length} unique designs`);
     console.log('Requested quantities:', quantities);
@@ -92,33 +93,71 @@ export class NestingService {
 
     console.log('Items sorted by height (descending)');
 
-    // Step 3: Use MaxRects packer with rotation enabled
-    // The packer will automatically create new bins (sheets) as needed
-    const packer = new MaxRectsPacker<PackingItem>(
-      sheetWidth,
-      sheetHeight,
-      spacing,  // padding between items
-      {
-        smart: true,      // Smart sizing
-        pot: false,       // Don't force power of 2
-        square: false,    // Don't force square
-        allowRotation: true, // Allow any rotation for max utilization
-        border: spacing,  // edge spacing
+    // Step 3: Create exactly maxSheets packers (one per sheet)
+    // Pack items into these fixed sheets to maximize utilization
+    const packers: MaxRectsPacker<PackingItem>[] = [];
+    for (let i = 0; i < maxSheets; i++) {
+      packers.push(new MaxRectsPacker<PackingItem>(
+        sheetWidth,
+        sheetHeight,
+        spacing,
+        {
+          smart: true,
+          pot: false,
+          square: false,
+          allowRotation: true,
+          border: spacing,
+        }
+      ));
+    }
+
+    // Pack items using round-robin strategy for better distribution
+    let packedCount = 0;
+    let currentPackerIndex = 0;
+
+    for (const item of allItems) {
+      let packed = false;
+
+      // Try to pack in the current packer first
+      for (let attempts = 0; attempts < maxSheets && !packed; attempts++) {
+        const packer = packers[currentPackerIndex];
+        packer.add(item);
+
+        // Check if item was successfully packed
+        if (packer.bins.length > 0 && packer.bins[0].rects.some(r => (r as any).instanceId === item.instanceId)) {
+          packed = true;
+          packedCount++;
+        } else {
+          // Item didn't fit, try next packer
+          currentPackerIndex = (currentPackerIndex + 1) % maxSheets;
+        }
       }
-    );
 
-    // Add all items to the packer
-    allItems.forEach(item => {
-      packer.add(item);
-    });
+      // Move to next packer for round-robin
+      if (packed) {
+        currentPackerIndex = (currentPackerIndex + 1) % maxSheets;
+      }
+    }
 
-    console.log(`Packing complete: ${packer.bins.length} sheets created`);
+    console.log(`Packing complete: ${packedCount}/${totalItems} items packed into ${maxSheets} sheets`);
 
-    // Step 4: Extract placements from bins
+    // Step 4: Extract placements from each packer's first bin
     const sheets: SheetPlacement[] = [];
     const singleSheetArea = sheetWidth * sheetHeight;
 
-    packer.bins.forEach((bin, index) => {
+    packers.forEach((packer, index) => {
+      if (packer.bins.length === 0 || packer.bins[0].rects.length === 0) {
+        // Empty sheet
+        sheets.push({
+          sheetIndex: index,
+          placements: [],
+          utilization: 0,
+        });
+        console.log(`  Sheet ${index + 1}: 0 items, 0.0% utilization`);
+        return;
+      }
+
+      const bin = packer.bins[0];
       const placements: Placement[] = bin.rects.map((rect) => {
         const item = rect as PackingItem;
         return {

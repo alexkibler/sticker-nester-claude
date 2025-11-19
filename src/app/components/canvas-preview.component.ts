@@ -277,9 +277,9 @@ export class CanvasPreviewComponent implements AfterViewInit, OnChanges {
   }
 
   private findStickerById(id: string): StickerSource | undefined {
-    // Remove _copyN suffix if present
-    const originalId = id.replace(/_copy\d+$/, '');
-    return this.stickers.find(s => s.id === originalId);
+    // Remove instance suffix (_0, _1, _2, etc.) if present
+    const originalId = id.replace(/_\d+$/, '');
+    return this.stickers.find(s => s.id === originalId || s.id === id);
   }
 
   private drawGridOnContext(ctx: CanvasRenderingContext2D, scale: number): void {

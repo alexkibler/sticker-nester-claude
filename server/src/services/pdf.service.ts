@@ -37,32 +37,62 @@ export class PdfService {
           const wPoints = sticker.width * 72;
           const hPoints = sticker.height * 72;
 
-          // Draw image
+          // Draw image with rotation support
           try {
-            doc.image(sticker.imageBuffer, xPoints, yPoints, {
-              width: wPoints,
-              height: hPoints
-            });
+            doc.save();
+
+            // Apply rotation if needed
+            if (placement.rotation && placement.rotation !== 0) {
+              // Translate to placement position
+              doc.translate(xPoints, yPoints);
+              // Rotate around origin
+              doc.rotate(placement.rotation, { origin: [0, 0] });
+              // Draw at origin (already translated)
+              doc.image(sticker.imageBuffer, 0, 0, {
+                width: wPoints,
+                height: hPoints
+              });
+            } else {
+              // No rotation - draw normally
+              doc.image(sticker.imageBuffer, xPoints, yPoints, {
+                width: wPoints,
+                height: hPoints
+              });
+            }
 
             // Draw cut line (red)
             if (sticker.points && sticker.points.length > 0) {
-              doc.save();
               doc.strokeColor('red');
               doc.lineWidth(0.5);
 
-              const scaledPoints = sticker.points.map(p => ({
-                x: xPoints + (p.x / sticker.width) * wPoints,
-                y: yPoints + (p.y / sticker.height) * hPoints
-              }));
+              if (placement.rotation && placement.rotation !== 0) {
+                // Rotated - points are already in the transformed space
+                const scaledPoints = sticker.points.map(p => ({
+                  x: (p.x / sticker.width) * wPoints,
+                  y: (p.y / sticker.height) * hPoints
+                }));
 
-              doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
-              for (let i = 1; i < scaledPoints.length; i++) {
-                doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                for (let i = 1; i < scaledPoints.length; i++) {
+                  doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                }
+              } else {
+                // Not rotated - offset by placement position
+                const scaledPoints = sticker.points.map(p => ({
+                  x: xPoints + (p.x / sticker.width) * wPoints,
+                  y: yPoints + (p.y / sticker.height) * hPoints
+                }));
+
+                doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                for (let i = 1; i < scaledPoints.length; i++) {
+                  doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                }
               }
               doc.closePath();
               doc.stroke();
-              doc.restore();
             }
+
+            doc.restore();
           } catch (err) {
             console.error('Error drawing sticker:', err);
           }
@@ -113,42 +143,75 @@ export class PdfService {
           }
 
           sheet.placements.forEach(placement => {
-            // Extract original sticker ID (remove _copyN suffix)
-            const originalId = placement.id.replace(/_copy\d+$/, '');
+            // Extract original sticker ID (remove instance suffix _0, _1, etc.)
+            const originalId = placement.id.replace(/_\d+$/, '');
             const sticker = stickers.get(originalId);
-            if (!sticker) return;
+            if (!sticker) {
+              console.warn(`Sticker not found for placement ID: ${placement.id}, tried: ${originalId}`);
+              return;
+            }
 
             const xPoints = placement.x * 72;
             const yPoints = placement.y * 72;
             const wPoints = sticker.width * 72;
             const hPoints = sticker.height * 72;
 
-            // Draw image
+            // Draw image with rotation support
             try {
-              doc.image(sticker.imageBuffer, xPoints, yPoints, {
-                width: wPoints,
-                height: hPoints
-              });
+              doc.save();
+
+              // Apply rotation if needed
+              if (placement.rotation && placement.rotation !== 0) {
+                // Translate to placement position
+                doc.translate(xPoints, yPoints);
+                // Rotate around origin
+                doc.rotate(placement.rotation, { origin: [0, 0] });
+                // Draw at origin (already translated)
+                doc.image(sticker.imageBuffer, 0, 0, {
+                  width: wPoints,
+                  height: hPoints
+                });
+              } else {
+                // No rotation - draw normally
+                doc.image(sticker.imageBuffer, xPoints, yPoints, {
+                  width: wPoints,
+                  height: hPoints
+                });
+              }
 
               // Draw cut line (red)
               if (sticker.points && sticker.points.length > 0) {
-                doc.save();
                 doc.strokeColor('red');
                 doc.lineWidth(0.5);
 
-                const scaledPoints = sticker.points.map(p => ({
-                  x: xPoints + (p.x / sticker.width) * wPoints,
-                  y: yPoints + (p.y / sticker.height) * hPoints
-                }));
+                if (placement.rotation && placement.rotation !== 0) {
+                  // Rotated - points are already in the transformed space
+                  const scaledPoints = sticker.points.map(p => ({
+                    x: (p.x / sticker.width) * wPoints,
+                    y: (p.y / sticker.height) * hPoints
+                  }));
 
-                doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
-                for (let i = 1; i < scaledPoints.length; i++) {
-                  doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                  doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                  for (let i = 1; i < scaledPoints.length; i++) {
+                    doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                  }
+                } else {
+                  // Not rotated - offset by placement position
+                  const scaledPoints = sticker.points.map(p => ({
+                    x: xPoints + (p.x / sticker.width) * wPoints,
+                    y: yPoints + (p.y / sticker.height) * hPoints
+                  }));
+
+                  doc.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                  for (let i = 1; i < scaledPoints.length; i++) {
+                    doc.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                  }
                 }
                 doc.closePath();
                 doc.stroke();
-                doc.restore();
               }
+
+              doc.restore();
             } catch (err) {
               console.error('Error drawing sticker:', err);
             }
