@@ -1,12 +1,22 @@
-import { Component, Output, EventEmitter, Input } from '@angular/core';
+import { Component, Output, EventEmitter, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import {
+  STANDARD_SHEET_SIZES,
+  StandardSheetSize,
+  UnitSystem,
+  UnitConverter,
+  SheetSizeConfig,
+  getCurrentDimensions
+} from '../models/sheet-size.interface';
 
 /**
  * ControlPanelComponent provides user controls
  *
  * Features:
- * - Sheet size configuration
+ * - Unit system toggle (metric/imperial)
+ * - Sheet size dropdown with standard sizes
+ * - Custom size input (when selected)
  * - Margin settings
  * - Nesting parameters
  * - Start/Stop controls
@@ -21,6 +31,30 @@ import { FormsModule } from '@angular/forms';
       <div class="section">
         <h3>Sheet Settings</h3>
 
+        <!-- Unit System Toggle -->
+        <div class="form-group unit-toggle">
+          <label>Unit System:</label>
+          <div class="toggle-buttons">
+            <button
+              type="button"
+              class="toggle-btn"
+              [class.active]="unitSystem === 'imperial'"
+              (click)="setUnitSystem('imperial')"
+            >
+              Imperial (in)
+            </button>
+            <button
+              type="button"
+              class="toggle-btn"
+              [class.active]="unitSystem === 'metric'"
+              (click)="setUnitSystem('metric')"
+            >
+              Metric (mm)
+            </button>
+          </div>
+        </div>
+
+        <!-- Production Mode -->
         <div class="form-group">
           <label>
             <input
@@ -33,6 +67,7 @@ import { FormsModule } from '@angular/forms';
           </label>
         </div>
 
+        <!-- Number of Sheets -->
         <div class="form-group" *ngIf="config.productionMode">
           <label>Number of Sheets:</label>
           <input
@@ -45,51 +80,70 @@ import { FormsModule } from '@angular/forms';
           />
         </div>
 
+        <!-- Sheet Size Dropdown -->
         <div class="form-group">
-          <label>Width (inches):</label>
+          <label>Sheet Size:</label>
+          <select
+            [(ngModel)]="selectedSizeId"
+            (change)="onSheetSizeChange()"
+            class="sheet-size-select"
+          >
+            <option *ngFor="let size of standardSheetSizes" [value]="size.id">
+              {{ getSheetSizeName(size) }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Custom Dimensions (shown only when Custom is selected) -->
+        <div *ngIf="isCustomSize" class="custom-dimensions">
+          <div class="form-group">
+            <label>Width {{ unitLabel }}:</label>
+            <input
+              type="number"
+              [(ngModel)]="customWidthDisplay"
+              [min]="minDimension"
+              [max]="maxDimension"
+              [step]="dimensionStep"
+              (change)="onCustomDimensionChange()"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Height {{ unitLabel }}:</label>
+            <input
+              type="number"
+              [(ngModel)]="customHeightDisplay"
+              [min]="minDimension"
+              [max]="maxDimension"
+              [step]="dimensionStep"
+              (change)="onCustomDimensionChange()"
+            />
+          </div>
+        </div>
+
+        <!-- Margin -->
+        <div class="form-group">
+          <label>Margin {{ unitLabel }}:</label>
           <input
             type="number"
-            [(ngModel)]="config.sheetWidth"
-            min="1"
-            max="48"
-            step="0.5"
-            (change)="onConfigChange()"
+            [(ngModel)]="marginDisplay"
+            [min]="0"
+            [max]="marginMax"
+            [step]="marginStep"
+            (change)="onMarginChange()"
           />
         </div>
 
+        <!-- Spacing -->
         <div class="form-group">
-          <label>Height (inches):</label>
+          <label>Spacing {{ unitLabel }}:</label>
           <input
             type="number"
-            [(ngModel)]="config.sheetHeight"
-            min="1"
-            max="48"
-            step="0.5"
-            (change)="onConfigChange()"
-          />
-        </div>
-
-        <div class="form-group">
-          <label>Margin (inches):</label>
-          <input
-            type="number"
-            [(ngModel)]="config.margin"
-            min="0"
-            max="1"
-            step="0.0625"
-            (change)="onConfigChange()"
-          />
-        </div>
-
-        <div class="form-group">
-          <label>Spacing (inches):</label>
-          <input
-            type="number"
-            [(ngModel)]="config.spacing"
-            min="0"
-            max="1"
-            step="0.0625"
-            (change)="onConfigChange()"
+            [(ngModel)]="spacingDisplay"
+            [min]="0"
+            [max]="marginMax"
+            [step]="marginStep"
+            (change)="onSpacingChange()"
           />
         </div>
       </div>
@@ -205,6 +259,66 @@ import { FormsModule } from '@angular/forms';
       color: #4CAF50;
     }
 
+    /* Unit toggle styles */
+    .unit-toggle {
+      margin-bottom: 20px;
+    }
+
+    .toggle-buttons {
+      display: flex;
+      gap: 0;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid #ddd;
+    }
+
+    .toggle-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      background-color: white;
+      color: #666;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-right: 1px solid #ddd;
+    }
+
+    .toggle-btn:last-child {
+      border-right: none;
+    }
+
+    .toggle-btn:hover {
+      background-color: #f5f5f5;
+    }
+
+    .toggle-btn.active {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    /* Custom dimensions highlight */
+    .custom-dimensions {
+      padding: 12px;
+      background-color: #f0f8f0;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      border: 1px dashed #4CAF50;
+    }
+
+    .custom-dimensions .form-group {
+      margin-bottom: 10px;
+    }
+
+    .custom-dimensions .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .sheet-size-select {
+      font-weight: 500;
+    }
+
     .btn {
       width: 100%;
       padding: 10px;
@@ -291,10 +405,15 @@ import { FormsModule } from '@angular/forms';
       h3 {
         font-size: 16px;
       }
+
+      .toggle-btn {
+        font-size: 12px;
+        padding: 6px 8px;
+      }
     }
   `]
 })
-export class ControlPanelComponent {
+export class ControlPanelComponent implements OnInit {
   @Input() canStartNesting = false;
   @Input() canExport = false;
   @Input() canReset = false;
@@ -306,16 +425,192 @@ export class ControlPanelComponent {
   @Output() exportPdf = new EventEmitter<void>();
   @Output() reset = new EventEmitter<void>();
 
+  // Configuration (internal storage in MM)
   config = {
     productionMode: false,
     sheetCount: 5,
-    sheetWidth: 12,
-    sheetHeight: 12,
-    margin: 0.125,
-    spacing: 0.0625
+    sheetWidthMM: 215.9,     // Letter width in mm
+    sheetHeightMM: 279.4,    // Letter height in mm
+    marginMM: 3.175,         // 0.125" in mm
+    spacingMM: 1.5875        // 0.0625" in mm
   };
 
+  // Sheet size state
+  standardSheetSizes = STANDARD_SHEET_SIZES;
+  selectedSizeId = 'letter'; // Default to Letter
+  unitSystem: UnitSystem = 'imperial'; // Default to imperial
+
+  // Display values (converted based on unit system)
+  customWidthDisplay = 12;
+  customHeightDisplay = 12;
+  marginDisplay = 0.125;
+  spacingDisplay = 0.0625;
+
+  ngOnInit(): void {
+    // Initialize display values based on current config
+    this.updateDisplayValues();
+    this.emitConfig();
+  }
+
+  /**
+   * Check if custom size is selected
+   */
+  get isCustomSize(): boolean {
+    return this.selectedSizeId === 'custom';
+  }
+
+  /**
+   * Get unit label for display
+   */
+  get unitLabel(): string {
+    return this.unitSystem === 'imperial' ? '(inches)' : '(mm)';
+  }
+
+  /**
+   * Get dimension constraints based on unit system
+   */
+  get minDimension(): number {
+    return this.unitSystem === 'imperial' ? 1 : 25.4;
+  }
+
+  get maxDimension(): number {
+    return this.unitSystem === 'imperial' ? 24 : 609.6;
+  }
+
+  get dimensionStep(): number {
+    return this.unitSystem === 'imperial' ? 0.1 : 1;
+  }
+
+  get marginMax(): number {
+    return this.unitSystem === 'imperial' ? 1 : 25.4;
+  }
+
+  get marginStep(): number {
+    return this.unitSystem === 'imperial' ? 0.0625 : 0.5;
+  }
+
+  /**
+   * Set unit system and update display values
+   */
+  setUnitSystem(system: UnitSystem): void {
+    this.unitSystem = system;
+    this.updateDisplayValues();
+  }
+
+  /**
+   * Get formatted sheet size name based on current unit system
+   */
+  getSheetSizeName(size: StandardSheetSize): string {
+    return UnitConverter.formatSheetSizeName(size, this.unitSystem);
+  }
+
+  /**
+   * Handle sheet size dropdown change
+   */
+  onSheetSizeChange(): void {
+    if (this.selectedSizeId === 'custom') {
+      // Custom size - use current display values
+      this.onCustomDimensionChange();
+    } else {
+      // Standard size - get dimensions from predefined list
+      const selectedSize = this.standardSheetSizes.find(s => s.id === this.selectedSizeId);
+      if (selectedSize) {
+        this.config.sheetWidthMM = selectedSize.widthMM;
+        this.config.sheetHeightMM = selectedSize.heightMM;
+        this.updateDisplayValues();
+        this.emitConfig();
+      }
+    }
+  }
+
+  /**
+   * Handle custom dimension changes
+   */
+  onCustomDimensionChange(): void {
+    if (this.unitSystem === 'imperial') {
+      this.config.sheetWidthMM = UnitConverter.inchesToMM(this.customWidthDisplay);
+      this.config.sheetHeightMM = UnitConverter.inchesToMM(this.customHeightDisplay);
+    } else {
+      this.config.sheetWidthMM = this.customWidthDisplay;
+      this.config.sheetHeightMM = this.customHeightDisplay;
+    }
+
+    // Validate custom dimensions
+    const validation = UnitConverter.validateCustomDimensions(
+      this.config.sheetWidthMM,
+      this.config.sheetHeightMM
+    );
+
+    if (!validation.valid) {
+      alert(validation.error);
+      // Reset to valid values
+      this.config.sheetWidthMM = UnitConverter.inchesToMM(12);
+      this.config.sheetHeightMM = UnitConverter.inchesToMM(12);
+      this.updateDisplayValues();
+    }
+
+    this.emitConfig();
+  }
+
+  /**
+   * Handle margin change
+   */
+  onMarginChange(): void {
+    if (this.unitSystem === 'imperial') {
+      this.config.marginMM = UnitConverter.inchesToMM(this.marginDisplay);
+    } else {
+      this.config.marginMM = this.marginDisplay;
+    }
+    this.emitConfig();
+  }
+
+  /**
+   * Handle spacing change
+   */
+  onSpacingChange(): void {
+    if (this.unitSystem === 'imperial') {
+      this.config.spacingMM = UnitConverter.inchesToMM(this.spacingDisplay);
+    } else {
+      this.config.spacingMM = this.spacingDisplay;
+    }
+    this.emitConfig();
+  }
+
+  /**
+   * Update display values based on internal MM values
+   */
+  private updateDisplayValues(): void {
+    if (this.unitSystem === 'imperial') {
+      this.customWidthDisplay = parseFloat(UnitConverter.mmToInches(this.config.sheetWidthMM).toFixed(2));
+      this.customHeightDisplay = parseFloat(UnitConverter.mmToInches(this.config.sheetHeightMM).toFixed(2));
+      this.marginDisplay = parseFloat(UnitConverter.mmToInches(this.config.marginMM).toFixed(4));
+      this.spacingDisplay = parseFloat(UnitConverter.mmToInches(this.config.spacingMM).toFixed(4));
+    } else {
+      this.customWidthDisplay = parseFloat(this.config.sheetWidthMM.toFixed(1));
+      this.customHeightDisplay = parseFloat(this.config.sheetHeightMM.toFixed(1));
+      this.marginDisplay = parseFloat(this.config.marginMM.toFixed(1));
+      this.spacingDisplay = parseFloat(this.config.spacingMM.toFixed(1));
+    }
+  }
+
+  /**
+   * Handle production mode or sheet count changes
+   */
   onConfigChange(): void {
-    this.configChanged.emit(this.config);
+    this.emitConfig();
+  }
+
+  /**
+   * Emit configuration to parent component
+   */
+  private emitConfig(): void {
+    this.configChanged.emit({
+      productionMode: this.config.productionMode,
+      sheetCount: this.config.sheetCount,
+      sheetWidthMM: this.config.sheetWidthMM,
+      sheetHeightMM: this.config.sheetHeightMM,
+      marginMM: this.config.marginMM,
+      spacingMM: this.config.spacingMM
+    });
   }
 }

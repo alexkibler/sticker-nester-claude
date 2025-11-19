@@ -4,6 +4,11 @@ import sharp from 'sharp';
 import { Placement, Sticker, SheetPlacement } from './nesting.service';
 
 export class PdfService {
+  // Conversion constant: millimeters to PDF points
+  // 1 inch = 25.4 mm = 72 points
+  // Therefore: 1 mm = 72/25.4 points = 2.834645669291339 points
+  private readonly MM_TO_POINTS = 72 / 25.4;
+
   /**
    * Optimize image buffer for PDF embedding to reduce RAM usage
    * Uses LOSSLESS PNG compression - perfect for print production
@@ -41,6 +46,12 @@ export class PdfService {
   /**
    * Generate PDF with sticker layout (streaming version for memory efficiency)
    * Instead of buffering entire PDF in memory, streams directly to output
+   *
+   * @param stickers Map of sticker IDs to sticker data with image buffers
+   * @param placements Array of placements (x, y, rotation in mm)
+   * @param sheetWidth Sheet width in millimeters
+   * @param sheetHeight Sheet height in millimeters
+   * @param outputStream Output stream for PDF data
    */
   async generatePdf(
     stickers: Map<string, Sticker & { imageBuffer: Buffer }>,
@@ -51,9 +62,9 @@ export class PdfService {
   ): Promise<void> {
     return new Promise(async (resolve, reject) => {
       try {
-        // Convert to PDF points (72 DPI)
-        const widthPoints = sheetWidth * 72;
-        const heightPoints = sheetHeight * 72;
+        // Convert from millimeters to PDF points
+        const widthPoints = sheetWidth * this.MM_TO_POINTS;
+        const heightPoints = sheetHeight * this.MM_TO_POINTS;
 
         const doc = new PDFDocument({
           size: [widthPoints, heightPoints],
@@ -80,10 +91,11 @@ export class PdfService {
           const optimizedBuffer = optimizedImages.get(placement.id);
           if (!optimizedBuffer) return;
 
-          const xPoints = placement.x * 72;
-          const yPoints = placement.y * 72;
-          const wPoints = sticker.width * 72;
-          const hPoints = sticker.height * 72;
+          // Convert from millimeters to PDF points
+          const xPoints = placement.x * this.MM_TO_POINTS;
+          const yPoints = placement.y * this.MM_TO_POINTS;
+          const wPoints = sticker.width * this.MM_TO_POINTS;
+          const hPoints = sticker.height * this.MM_TO_POINTS;
 
           // Draw image with rotation support
           try {
@@ -199,6 +211,12 @@ export class PdfService {
   /**
    * Generate multi-page PDF for production mode (streaming version for memory efficiency)
    * CRITICAL: Optimized for large PDFs (50+ pages) to prevent OOM kills
+   *
+   * @param stickers Map of sticker IDs to sticker data with image buffers
+   * @param sheets Array of sheet placements (each sheet has multiple placements)
+   * @param sheetWidth Sheet width in millimeters
+   * @param sheetHeight Sheet height in millimeters
+   * @param outputStream Output stream for PDF data
    */
   async generateMultiSheetPdf(
     stickers: Map<string, Sticker & { imageBuffer: Buffer }>,
@@ -211,9 +229,9 @@ export class PdfService {
       try {
         console.log(`Generating multi-sheet PDF: ${sheets.length} pages (memory-optimized streaming mode)`);
 
-        // Convert to PDF points (72 DPI)
-        const widthPoints = sheetWidth * 72;
-        const heightPoints = sheetHeight * 72;
+        // Convert from millimeters to PDF points
+        const widthPoints = sheetWidth * this.MM_TO_POINTS;
+        const heightPoints = sheetHeight * this.MM_TO_POINTS;
 
         const doc = new PDFDocument({
           size: [widthPoints, heightPoints],
@@ -260,10 +278,11 @@ export class PdfService {
               return;
             }
 
-            const xPoints = placement.x * 72;
-            const yPoints = placement.y * 72;
-            const wPoints = sticker.width * 72;
-            const hPoints = sticker.height * 72;
+            // Convert from millimeters to PDF points
+            const xPoints = placement.x * this.MM_TO_POINTS;
+            const yPoints = placement.y * this.MM_TO_POINTS;
+            const wPoints = sticker.width * this.MM_TO_POINTS;
+            const hPoints = sticker.height * this.MM_TO_POINTS;
 
             // Draw image with rotation support
             try {

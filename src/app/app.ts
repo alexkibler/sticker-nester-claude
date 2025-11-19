@@ -17,7 +17,8 @@ import {
 // Models
 import {
   StickerSource,
-  Placement
+  Placement,
+  UnitConverter
 } from './models';
 
 import { SheetPlacement } from './services/api.service';
@@ -66,14 +67,14 @@ export class App implements OnInit, OnDestroy {
   pdfTotalPages = 0;
   showPdfProgress = false;
 
-  // Configuration
+  // Configuration (stored in millimeters)
   config = {
     productionMode: false,
     sheetCount: 5,
-    sheetWidth: 12,
-    sheetHeight: 12,
-    margin: 0.125,
-    spacing: 0.0625
+    sheetWidthMM: 215.9,     // Letter width in mm (8.5")
+    sheetHeightMM: 279.4,    // Letter height in mm (11")
+    marginMM: 3.175,         // 0.125" in mm
+    spacingMM: 1.5875        // 0.0625" in mm
   };
 
   private subscriptions = new Subscription();
@@ -117,12 +118,12 @@ export class App implements OnInit, OnDestroy {
           inputDimensions: {
             width: processed.width,
             height: processed.height,
-            unit: 'in'
+            unit: 'mm'
           },
           originalPath: processed.path,
           simplifiedPath: processed.path,
           offsetPath: processed.path,
-          margin: this.config.margin,
+          margin: this.config.marginMM,
           isProcessed: true
         };
 
@@ -166,7 +167,7 @@ export class App implements OnInit, OnDestroy {
     this.sheets = [];
 
     try {
-      // Prepare request payload
+      // Prepare request payload (all dimensions in mm)
       const requestPayload: any = {
         stickers: this.stickers.map(s => ({
           id: s.id,
@@ -174,9 +175,9 @@ export class App implements OnInit, OnDestroy {
           width: s.inputDimensions.width,
           height: s.inputDimensions.height
         })),
-        sheetWidth: this.config.sheetWidth,
-        sheetHeight: this.config.sheetHeight,
-        spacing: this.config.spacing,
+        sheetWidth: this.config.sheetWidthMM,
+        sheetHeight: this.config.sheetHeightMM,
+        spacing: this.config.spacingMM,
         productionMode: this.config.productionMode,
         sheetCount: this.config.sheetCount
       };
@@ -185,8 +186,8 @@ export class App implements OnInit, OnDestroy {
       if (this.config.productionMode) {
         requestPayload.quantities = {};
 
-        // Calculate total available area
-        const totalSheetArea = this.config.sheetWidth * this.config.sheetHeight * this.config.sheetCount;
+        // Calculate total available area (in square mm)
+        const totalSheetArea = this.config.sheetWidthMM * this.config.sheetHeightMM * this.config.sheetCount;
 
         // Calculate total sticker area (sum of all unique stickers)
         const totalStickerArea = this.stickers.reduce((sum, s) =>
@@ -251,7 +252,7 @@ export class App implements OnInit, OnDestroy {
         fileMap.set(sticker.id, sticker.file);
       });
 
-      // Prepare sticker data for PDF generation
+      // Prepare sticker data for PDF generation (all dimensions in mm)
       const stickerData = this.stickers.map(s => ({
         id: s.id,
         points: s.simplifiedPath,
@@ -259,13 +260,13 @@ export class App implements OnInit, OnDestroy {
         height: s.inputDimensions.height
       }));
 
-      // Call backend API to generate PDF with progress tracking
+      // Call backend API to generate PDF with progress tracking (dimensions in mm)
       const blob = await this.apiService.generatePdf(
         fileMap,
         this.config.productionMode && this.sheets.length > 0 ? this.sheets : this.placements,
         stickerData,
-        this.config.sheetWidth,
-        this.config.sheetHeight,
+        this.config.sheetWidthMM,
+        this.config.sheetHeightMM,
         this.config.productionMode,
         (progress, current, total) => {
           this.pdfProgress = progress;
