@@ -146,6 +146,25 @@ import {
             (change)="onSpacingChange()"
           />
         </div>
+
+        <!-- Max Sticker Dimension -->
+        <div class="form-group max-dimension-highlight">
+          <label class="highlight-label">
+            Max Sticker Dimension {{ unitLabel }}:
+          </label>
+          <input
+            type="number"
+            [(ngModel)]="maxDimensionDisplay"
+            [min]="0.1"
+            [max]="maxDimension"
+            [step]="dimensionStep"
+            (change)="onMaxDimensionChange()"
+            class="highlight-input"
+          />
+          <small class="help-text">
+            All uploaded stickers will be scaled so their largest dimension equals this value
+          </small>
+        </div>
       </div>
 
       <div class="section">
@@ -319,6 +338,40 @@ import {
       font-weight: 500;
     }
 
+    /* Max dimension highlight */
+    .max-dimension-highlight {
+      padding: 12px;
+      background-color: #fff9e6;
+      border-radius: 4px;
+      margin-top: 15px;
+      border: 2px solid #ff9800;
+    }
+
+    .highlight-label {
+      font-weight: 700 !important;
+      color: #e67e22 !important;
+    }
+
+    .highlight-input {
+      border: 2px solid #ff9800 !important;
+      background-color: white;
+    }
+
+    .highlight-input:focus {
+      outline: none;
+      border-color: #f57c00 !important;
+      box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
+    }
+
+    .help-text {
+      display: block;
+      margin-top: 6px;
+      font-size: 11px;
+      color: #666;
+      font-style: italic;
+      line-height: 1.4;
+    }
+
     .btn {
       width: 100%;
       padding: 10px;
@@ -432,7 +485,9 @@ export class ControlPanelComponent implements OnInit {
     sheetWidthMM: 215.9,     // Letter width in mm
     sheetHeightMM: 279.4,    // Letter height in mm
     marginMM: 3.175,         // 0.125" in mm
-    spacingMM: 1.5875        // 0.0625" in mm
+    spacingMM: 1.5875,       // 0.0625" in mm
+    maxDimensionMM: 76.2,    // 3" in mm - max dimension for ALL stickers
+    unit: 'inches' as 'inches' | 'mm'  // User's preferred unit
   };
 
   // Sheet size state
@@ -445,6 +500,7 @@ export class ControlPanelComponent implements OnInit {
   customHeightDisplay = 12;
   marginDisplay = 0.125;
   spacingDisplay = 0.0625;
+  maxDimensionDisplay = 3; // Default 3 inches
 
   ngOnInit(): void {
     // Initialize display values based on current config
@@ -577,6 +633,20 @@ export class ControlPanelComponent implements OnInit {
   }
 
   /**
+   * Handle max dimension change
+   */
+  onMaxDimensionChange(): void {
+    if (this.unitSystem === 'imperial') {
+      this.config.maxDimensionMM = UnitConverter.inchesToMM(this.maxDimensionDisplay);
+      this.config.unit = 'inches';
+    } else {
+      this.config.maxDimensionMM = this.maxDimensionDisplay;
+      this.config.unit = 'mm';
+    }
+    this.emitConfig();
+  }
+
+  /**
    * Update display values based on internal MM values
    */
   private updateDisplayValues(): void {
@@ -585,11 +655,15 @@ export class ControlPanelComponent implements OnInit {
       this.customHeightDisplay = parseFloat(UnitConverter.mmToInches(this.config.sheetHeightMM).toFixed(2));
       this.marginDisplay = parseFloat(UnitConverter.mmToInches(this.config.marginMM).toFixed(4));
       this.spacingDisplay = parseFloat(UnitConverter.mmToInches(this.config.spacingMM).toFixed(4));
+      this.maxDimensionDisplay = parseFloat(UnitConverter.mmToInches(this.config.maxDimensionMM).toFixed(2));
+      this.config.unit = 'inches';
     } else {
       this.customWidthDisplay = parseFloat(this.config.sheetWidthMM.toFixed(1));
       this.customHeightDisplay = parseFloat(this.config.sheetHeightMM.toFixed(1));
       this.marginDisplay = parseFloat(this.config.marginMM.toFixed(1));
       this.spacingDisplay = parseFloat(this.config.spacingMM.toFixed(1));
+      this.maxDimensionDisplay = parseFloat(this.config.maxDimensionMM.toFixed(1));
+      this.config.unit = 'mm';
     }
   }
 
@@ -610,7 +684,9 @@ export class ControlPanelComponent implements OnInit {
       sheetWidthMM: this.config.sheetWidthMM,
       sheetHeightMM: this.config.sheetHeightMM,
       marginMM: this.config.marginMM,
-      spacingMM: this.config.spacingMM
+      spacingMM: this.config.spacingMM,
+      maxDimensionMM: this.config.maxDimensionMM,
+      unit: this.config.unit
     });
   }
 }

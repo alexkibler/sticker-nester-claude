@@ -74,7 +74,9 @@ export class App implements OnInit, OnDestroy {
     sheetWidthMM: 215.9,     // Letter width in mm (8.5")
     sheetHeightMM: 279.4,    // Letter height in mm (11")
     marginMM: 3.175,         // 0.125" in mm
-    spacingMM: 1.5875        // 0.0625" in mm
+    spacingMM: 1.5875,       // 0.0625" in mm
+    maxDimensionMM: 76.2,    // 3" in mm - max dimension for ALL stickers
+    unit: 'inches' as 'inches' | 'mm'  // User's preferred unit
   };
 
   private subscriptions = new Subscription();
@@ -101,10 +103,20 @@ export class App implements OnInit, OnDestroy {
     this.uploadProgress = 0;
 
     try {
+      // Calculate max dimension in user's preferred unit
+      const maxDimension = this.config.unit === 'inches'
+        ? this.config.maxDimensionMM / 25.4
+        : this.config.maxDimensionMM;
+
       // Process all files via backend API with progress tracking
-      const processedImages = await this.apiService.processImages(files, (progress) => {
-        this.uploadProgress = progress;
-      });
+      const processedImages = await this.apiService.processImages(
+        files,
+        maxDimension,
+        this.config.unit,
+        (progress) => {
+          this.uploadProgress = progress;
+        }
+      );
 
       // Create sticker objects with processed data
       for (let i = 0; i < processedImages.length; i++) {
@@ -316,7 +328,48 @@ export class App implements OnInit, OnDestroy {
    * Handle configuration changes
    */
   onConfigChanged(newConfig: any): void {
+    const oldMaxDimensionMM = this.config.maxDimensionMM;
     this.config = { ...this.config, ...newConfig };
+
+    // If max dimension changed and we have stickers, re-scale them
+    if (newConfig.maxDimensionMM && oldMaxDimensionMM !== newConfig.maxDimensionMM && this.stickers.length > 0) {
+      this.rescaleAllStickers(oldMaxDimensionMM, newConfig.maxDimensionMM);
+    }
+  }
+
+  /**
+   * Re-scale all stickers when max dimension changes
+   */
+  private rescaleAllStickers(oldMaxMM: number, newMaxMM: number): void {
+    const scaleFactor = newMaxMM / oldMaxMM;
+
+    this.stickers.forEach(sticker => {
+      // Scale the dimensions
+      sticker.inputDimensions.width *= scaleFactor;
+      sticker.inputDimensions.height *= scaleFactor;
+
+      // Scale the paths
+      sticker.originalPath = sticker.originalPath.map(p => ({
+        x: p.x * scaleFactor,
+        y: p.y * scaleFactor
+      }));
+      sticker.simplifiedPath = sticker.simplifiedPath.map(p => ({
+        x: p.x * scaleFactor,
+        y: p.y * scaleFactor
+      }));
+      sticker.offsetPath = sticker.offsetPath.map(p => ({
+        x: p.x * scaleFactor,
+        y: p.y * scaleFactor
+      }));
+    });
+
+    // Clear existing placements so user needs to re-nest
+    this.placements = [];
+    this.sheets = [];
+    this.utilization = 0;
+    this.quantities = {};
+
+    console.log(`Re-scaled ${this.stickers.length} stickers from ${(oldMaxMM / 25.4).toFixed(2)}" to ${(newMaxMM / 25.4).toFixed(2)}" max dimension`);
   }
 
   /**
