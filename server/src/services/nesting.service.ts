@@ -218,6 +218,47 @@ export class NestingService {
 
     console.log(`Total utilization: ${totalUtilization.toFixed(1)}%`);
 
+    // Step 5: Gap-filling optimization pass
+    // Try to fit remaining unpacked items into empty spaces on each sheet
+    const packedInstanceIds = new Set<string>();
+    sheets.forEach(sheet => {
+      sheet.placements.forEach(placement => {
+        packedInstanceIds.add(placement.id);
+      });
+    });
+
+    const unpackedItems = allItems.filter(item => !packedInstanceIds.has(item.instanceId));
+
+    if (unpackedItems.length > 0) {
+      console.log(`\nGap-filling optimization: Attempting to fit ${unpackedItems.length} remaining items into empty spaces`);
+
+      // Sort unpacked items by area (smallest first) - small items are more likely to fit in gaps
+      unpackedItems.sort((a, b) => {
+        const areaA = a.width * a.height;
+        const areaB = b.width * b.height;
+        return areaA - areaB;
+      });
+
+      const gapFillingResults = this.fillGaps(sheets, unpackedItems, allItems, sheetWidth, sheetHeight, stickers, spacing);
+
+      // Update sheets with gap-filled results
+      sheets.splice(0, sheets.length, ...gapFillingResults.sheets);
+
+      console.log(`Gap-filling complete: Added ${gapFillingResults.totalItemsAdded} items across all sheets`);
+    }
+
+    // Recalculate total utilization after gap-filling
+    const totalAreaAfterGapFill = singleSheetArea * sheets.length;
+    const totalUsedAreaAfterGapFill = sheets.reduce((sum, sheet) => {
+      return sum + sheet.placements.reduce((itemSum, p) => {
+        const item = allItems.find(i => i.instanceId === p.id);
+        return itemSum + (item ? item.originalWidth * item.originalHeight : 0);
+      }, 0);
+    }, 0);
+    const totalUtilizationAfterGapFill = (totalUsedAreaAfterGapFill / totalAreaAfterGapFill) * 100;
+
+    console.log(`Total utilization after gap-filling: ${totalUtilizationAfterGapFill.toFixed(1)}%`);
+
     // Calculate quantities from packed results
     const quantities: { [stickerId: string]: number } = {};
     sheets.forEach(sheet => {
@@ -229,12 +270,112 @@ export class NestingService {
       });
     });
 
-    console.log('Packed quantities:', quantities);
+    console.log('Final packed quantities:', quantities);
 
     return {
       sheets,
-      totalUtilization,
+      totalUtilization: totalUtilizationAfterGapFill,
       quantities,
+    };
+  }
+
+  /**
+   * Gap-filling optimization: Try to fit unpacked items into remaining empty space on each sheet
+   * This is a post-processing step that runs after the main packing algorithm
+   */
+  private fillGaps(
+    sheets: SheetPlacement[],
+    unpackedItems: any[],
+    allItems: any[],
+    sheetWidth: number,
+    sheetHeight: number,
+    originalStickers: Sticker[],
+    spacing: number
+  ): { sheets: SheetPlacement[]; totalItemsAdded: number } {
+    let totalItemsAdded = 0;
+    const updatedSheets: SheetPlacement[] = [];
+
+    // Process each sheet individually
+    for (const sheet of sheets) {
+      let itemsAddedToSheet = 0;
+      const remainingUnpacked = [...unpackedItems];
+      const currentPlacements = [...sheet.placements];
+
+      // Try to add each unpacked item to this sheet
+      for (let i = 0; i < remainingUnpacked.length; i++) {
+        const candidateItem = remainingUnpacked[i];
+
+        // Create a temporary packer to test if this item can fit
+        const testPacker = new MaxRectsPacker<any>(
+          sheetWidth,
+          sheetHeight,
+          0,
+          {
+            smart: true,
+            pot: false,
+            square: false,
+            allowRotation: true,
+            border: 0,
+          }
+        );
+
+        // Add all currently placed items to reserve their space
+        currentPlacements.forEach(placement => {
+          const placedItem = allItems.find(item => item.instanceId === placement.id);
+          if (placedItem) {
+            testPacker.add({
+              ...placedItem,
+              x: placement.x,
+              y: placement.y,
+            });
+          }
+        });
+
+        // Try to add the candidate item
+        testPacker.add(candidateItem);
+
+        // Check if the item was successfully packed (should still be in first bin)
+        if (testPacker.bins.length === 1 && testPacker.bins[0].rects.length === currentPlacements.length + 1) {
+          // Item fit! Add it to current placements
+          const packedRect = testPacker.bins[0].rects[testPacker.bins[0].rects.length - 1];
+          currentPlacements.push({
+            id: candidateItem.instanceId,
+            x: packedRect.x,
+            y: packedRect.y,
+            rotation: packedRect.rot ? 90 : 0,
+          });
+
+          // Remove this item from unpacked pool
+          remainingUnpacked.splice(i, 1);
+          i--; // Adjust index since we removed an item
+
+          itemsAddedToSheet++;
+          totalItemsAdded++;
+        }
+      }
+
+      // Recalculate utilization for this sheet
+      const usedArea = currentPlacements.reduce((sum, placement) => {
+        const item = allItems.find(i => i.instanceId === placement.id);
+        return sum + (item ? item.originalWidth * item.originalHeight : 0);
+      }, 0);
+      const sheetArea = sheetWidth * sheetHeight;
+      const utilization = (usedArea / sheetArea) * 100;
+
+      updatedSheets.push({
+        sheetIndex: sheet.sheetIndex,
+        placements: currentPlacements,
+        utilization,
+      });
+
+      if (itemsAddedToSheet > 0) {
+        console.log(`  Sheet ${sheet.sheetIndex + 1}: Added ${itemsAddedToSheet} items via gap-filling (${utilization.toFixed(1)}% utilization)`);
+      }
+    }
+
+    return {
+      sheets: updatedSheets,
+      totalItemsAdded,
     };
   }
 
