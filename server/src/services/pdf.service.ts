@@ -7,17 +7,36 @@ export class PdfService {
   /**
    * Optimize image buffer for PDF embedding to reduce RAM usage
    * Compresses and resizes images while maintaining quality
+   * Handles transparency by compositing onto white background
    */
   private async optimizeImageBuffer(imageBuffer: Buffer, maxWidth: number = 1200): Promise<Buffer> {
     try {
-      return await sharp(imageBuffer)
-        .resize(maxWidth, maxWidth, {
-          fit: 'inside',
-          withoutEnlargement: true
-        })
+      const image = sharp(imageBuffer);
+      const metadata = await image.metadata();
+
+      // Resize first
+      const resized = image.resize(maxWidth, maxWidth, {
+        fit: 'inside',
+        withoutEnlargement: true
+      });
+
+      // If image has alpha channel (transparency), flatten onto white background
+      // This prevents transparent areas from becoming black in JPEG
+      if (metadata.hasAlpha) {
+        return await resized
+          .flatten({ background: { r: 255, g: 255, b: 255 } }) // White background
+          .jpeg({
+            quality: 85,
+            mozjpeg: true
+          })
+          .toBuffer();
+      }
+
+      // No transparency, just compress
+      return await resized
         .jpeg({
           quality: 85,
-          mozjpeg: true // Better compression
+          mozjpeg: true
         })
         .toBuffer();
     } catch (error) {
