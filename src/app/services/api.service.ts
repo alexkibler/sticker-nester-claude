@@ -21,12 +21,23 @@ export interface NestingApiRequest {
   sheetWidth: number;
   sheetHeight: number;
   spacing: number;
+  productionMode?: boolean;
+  sheetCount?: number;
+}
+
+export interface SheetPlacement {
+  sheetIndex: number;
+  placements: Placement[];
+  utilization: number;
 }
 
 export interface NestingApiResponse {
-  placements: Placement[];
-  utilization: number;
-  fitness: number;
+  placements?: Placement[];
+  utilization?: number;
+  fitness?: number;
+  sheets?: SheetPlacement[];
+  totalUtilization?: number;
+  quantities?: { [stickerId: string]: number };
 }
 
 export interface PdfGenerationRequest {
@@ -82,9 +93,11 @@ export class ApiService {
    */
   async generatePdf(
     files: Map<string, File>,
-    placements: Placement[],
+    placementsOrSheets: Placement[] | SheetPlacement[],
+    stickers: any[],
     sheetWidth: number,
-    sheetHeight: number
+    sheetHeight: number,
+    productionMode: boolean = false
   ): Promise<Blob> {
     const formData = new FormData();
 
@@ -93,10 +106,17 @@ export class ApiService {
       formData.append('images', file, id);
     });
 
-    // Add placement and sheet data
-    formData.append('placements', JSON.stringify(placements));
+    // Add placement/sheet data based on mode
+    if (productionMode) {
+      formData.append('sheets', JSON.stringify(placementsOrSheets));
+    } else {
+      formData.append('placements', JSON.stringify(placementsOrSheets));
+    }
+
+    formData.append('stickers', JSON.stringify(stickers));
     formData.append('sheetWidth', sheetWidth.toString());
     formData.append('sheetHeight', sheetHeight.toString());
+    formData.append('productionMode', productionMode.toString());
 
     const response = await firstValueFrom(
       this.http.post(

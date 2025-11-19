@@ -126,6 +126,45 @@
   color: #999;
 }
 
+.sticker-size-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.size-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  label {
+    font-size: 10px;
+    color: #666;
+    font-weight: 500;
+    text-align: left;
+  }
+}
+
+.dimension-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+  transition: border-color 0.2s;
+
+  &:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+
+  &:hover {
+    border-color: #bbb;
+  }
+}
+
 .preview-section {
   background: white;
   border-radius: 8px;

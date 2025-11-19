@@ -12,14 +12,15 @@ const pdfService = new PdfService();
 router.post('/generate', upload.array('images', 20), async (req: Request, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
-    const { placements, sheetWidth, sheetHeight, stickers } = req.body;
+    const { placements, sheets, sheetWidth, sheetHeight, stickers, productionMode } = req.body;
 
-    if (!files || !placements || !sheetWidth || !sheetHeight) {
+    if (!files || !sheetWidth || !sheetHeight) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
+    const isProductionMode = productionMode === 'true';
+
     // Parse JSON data
-    const parsedPlacements = JSON.parse(placements);
     const parsedStickers = JSON.parse(stickers);
 
     // Create sticker map with images
@@ -34,12 +35,28 @@ router.post('/generate', upload.array('images', 20), async (req: Request, res: R
       }
     });
 
-    const pdfBuffer = await pdfService.generatePdf(
-      stickerMap,
-      parsedPlacements,
-      parseFloat(sheetWidth),
-      parseFloat(sheetHeight)
-    );
+    let pdfBuffer: Buffer;
+
+    if (isProductionMode && sheets) {
+      // Multi-sheet PDF generation
+      const parsedSheets = JSON.parse(sheets);
+      console.log('Generating multi-sheet PDF with sheets:', JSON.stringify(parsedSheets, null, 2));
+      pdfBuffer = await pdfService.generateMultiSheetPdf(
+        stickerMap,
+        parsedSheets,
+        parseFloat(sheetWidth),
+        parseFloat(sheetHeight)
+      );
+    } else {
+      // Single sheet PDF generation
+      const parsedPlacements = JSON.parse(placements);
+      pdfBuffer = await pdfService.generatePdf(
+        stickerMap,
+        parsedPlacements,
+        parseFloat(sheetWidth),
+        parseFloat(sheetHeight)
+      );
+    }
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename=sticker-layout.pdf');

@@ -22,6 +22,30 @@ import { FormsModule } from '@angular/forms';
         <h3>Sheet Settings</h3>
 
         <div class="form-group">
+          <label>
+            <input
+              type="checkbox"
+              [(ngModel)]="config.productionMode"
+              (change)="onConfigChange()"
+              class="checkbox-input"
+            />
+            Production Mode (Multiple Sheets)
+          </label>
+        </div>
+
+        <div class="form-group" *ngIf="config.productionMode">
+          <label>Number of Sheets:</label>
+          <input
+            type="number"
+            [(ngModel)]="config.sheetCount"
+            min="1"
+            max="100"
+            step="1"
+            (change)="onConfigChange()"
+          />
+        </div>
+
+        <div class="form-group">
           <label>Width (inches):</label>
           <input
             type="number"
@@ -204,6 +228,20 @@ import { FormsModule } from '@angular/forms';
       border-color: #4CAF50;
     }
 
+    .checkbox-input {
+      width: auto;
+      margin-right: 8px;
+      cursor: pointer;
+    }
+
+    label:has(.checkbox-input) {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      font-weight: 600;
+      color: #4CAF50;
+    }
+
     .btn {
       width: 100%;
       padding: 10px;
@@ -284,6 +322,8 @@ export class ControlPanelComponent {
   @Output() reset = new EventEmitter<void>();
 
   config = {
+    productionMode: false,
+    sheetCount: 5,
     sheetWidth: 12,
     sheetHeight: 12,
     margin: 0.125,

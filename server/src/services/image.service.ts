@@ -19,19 +19,32 @@ export class ImageService {
     const metadata = await sharp(buffer).metadata();
     const width = metadata.width || 0;
     const height = metadata.height || 0;
+    const hasAlpha = metadata.channels === 4;
 
-    // Convert to PNG with alpha channel
-    const pngBuffer = await sharp(buffer)
-      .png()
-      .toBuffer();
+    let maskBuffer: Buffer;
 
-    // Create alpha mask for better tracing
-    const maskBuffer = await sharp(buffer)
-      .extractChannel('alpha')
-      .threshold(128)
-      .toBuffer();
+    if (hasAlpha) {
+      // Image has transparency - use alpha channel
+      maskBuffer = await sharp(buffer)
+        .extractChannel('alpha')
+        .threshold(128)
+        .toBuffer();
+    } else {
+      // No alpha channel - treat entire image as opaque
+      // Create a white mask (everything is included)
+      const whitePixel = Buffer.alloc(1, 255);
+      maskBuffer = await sharp(whitePixel, {
+        raw: {
+          width: 1,
+          height: 1,
+          channels: 1
+        }
+      } as any)
+        .resize(width, height, { kernel: 'nearest' })
+        .toBuffer();
+    }
 
-    // Trace the image
+    // Trace the mask
     const traced = await this.traceImage(maskBuffer, width, height);
 
     return {

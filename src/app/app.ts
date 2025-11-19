@@ -19,6 +19,8 @@ import {
   Placement
 } from './models';
 
+import { SheetPlacement } from './services/api.service';
+
 /**
  * Main application component
  *
@@ -46,14 +48,18 @@ export class App implements OnInit, OnDestroy {
   protected readonly title = signal('Sticker Nester');
   stickers: StickerSource[] = [];
   placements: Placement[] = [];
+  sheets: SheetPlacement[] = [];
   isNesting = false;
   isProcessing = false;
   currentGeneration = 0;
   currentFitness = 0;
   utilization = 0;
+  quantities: { [stickerId: string]: number } = {};
 
   // Configuration
   config = {
+    productionMode: false,
+    sheetCount: 5,
     sheetWidth: 12,
     sheetHeight: 12,
     margin: 0.125,
@@ -111,10 +117,13 @@ export class App implements OnInit, OnDestroy {
 
         this.stickers.push(sticker);
       }
+
+      // Automatically run nesting after upload
+      this.isProcessing = false;
+      await this.onStartNesting();
     } catch (error) {
       console.error('Error processing files:', error);
       alert('Error processing files. Please try again.');
-    } finally {
       this.isProcessing = false;
     }
   }
@@ -141,6 +150,7 @@ export class App implements OnInit, OnDestroy {
 
     this.isNesting = true;
     this.placements = [];
+    this.sheets = [];
 
     try {
       // Call backend API for nesting
@@ -153,12 +163,24 @@ export class App implements OnInit, OnDestroy {
         })),
         sheetWidth: this.config.sheetWidth,
         sheetHeight: this.config.sheetHeight,
-        spacing: this.config.spacing
+        spacing: this.config.spacing,
+        productionMode: this.config.productionMode,
+        sheetCount: this.config.sheetCount
       });
 
-      this.placements = response.placements;
-      this.utilization = response.utilization;
-      this.currentFitness = response.fitness;
+      // Handle multi-sheet response
+      if (response.sheets && response.sheets.length > 0) {
+        this.sheets = response.sheets;
+        this.utilization = response.totalUtilization || 0;
+        this.quantities = response.quantities || {};
+        // For preview compatibility, use first sheet's placements
+        this.placements = response.sheets[0].placements;
+      } else {
+        // Single sheet response
+        this.placements = response.placements || [];
+        this.utilization = response.utilization || 0;
+        this.currentFitness = response.fitness || 0;
+      }
     } catch (error) {
       console.error('Nesting error:', error);
       alert('Error running nesting algorithm. Please try again.');
@@ -172,7 +194,7 @@ export class App implements OnInit, OnDestroy {
    * Export to PDF
    */
   async onExportPdf(): Promise<void> {
-    if (this.placements.length === 0) {
+    if (this.placements.length === 0 && this.sheets.length === 0) {
       alert('Please run nesting first');
       return;
     }
@@ -184,12 +206,22 @@ export class App implements OnInit, OnDestroy {
         fileMap.set(sticker.id, sticker.file);
       });
 
+      // Prepare sticker data for PDF generation
+      const stickerData = this.stickers.map(s => ({
+        id: s.id,
+        points: s.simplifiedPath,
+        width: s.inputDimensions.width,
+        height: s.inputDimensions.height
+      }));
+
       // Call backend API to generate PDF
       const blob = await this.apiService.generatePdf(
         fileMap,
-        this.placements,
+        this.config.productionMode && this.sheets.length > 0 ? this.sheets : this.placements,
+        stickerData,
         this.config.sheetWidth,
-        this.config.sheetHeight
+        this.config.sheetHeight,
+        this.config.productionMode
       );
 
       // Download the PDF
@@ -213,6 +245,8 @@ export class App implements OnInit, OnDestroy {
     if (confirm('Are you sure you want to reset? All progress will be lost.')) {
       this.stickers = [];
       this.placements = [];
+      this.sheets = [];
+      this.quantities = {};
       this.isNesting = false;
       this.isProcessing = false;
       this.currentGeneration = 0;
@@ -226,6 +260,25 @@ export class App implements OnInit, OnDestroy {
    */
   onConfigChanged(newConfig: any): void {
     this.config = { ...this.config, ...newConfig };
+  }
+
+  /**
+   * Handle sticker dimension changes
+   */
+  onStickerDimensionChange(index: number, dimension: 'width' | 'height', event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const value = parseFloat(input.value);
+
+    if (value > 0 && !isNaN(value)) {
+      this.stickers[index].inputDimensions[dimension] = value;
+
+      // Clear placements when dimensions change so user needs to re-nest
+      if (this.placements.length > 0 || this.sheets.length > 0) {
+        this.placements = [];
+        this.sheets = [];
+        this.utilization = 0;
+      }
+    }
   }
 
   /**

@@ -21,14 +21,24 @@ router.post('/process', upload.array('images', 20), async (req: Request, res: Re
 
     const processed = await Promise.all(
       files.map(async (file) => {
-        const { path, width, height } = await imageService.processImage(file.buffer);
+        const { path } = await imageService.processImage(file.buffer);
         const simplified = geometryService.simplifyPath(path, 2.0);
+
+        // Calculate bounding box of the traced path (ignoring transparent background)
+        const bbox = geometryService.getBoundingBox(simplified);
+
+        // Normalize path coordinates relative to bounding box origin
+        // and convert to inches (300 DPI)
+        const normalizedPath = simplified.map(p => ({
+          x: (p.x - bbox.minX) / 300,
+          y: (p.y - bbox.minY) / 300
+        }));
 
         return {
           id: file.originalname,
-          path: simplified,
-          width: width / 300, // Convert pixels to inches at 300 DPI
-          height: height / 300
+          path: normalizedPath,
+          width: bbox.width / 300, // Convert pixels to inches at 300 DPI
+          height: bbox.height / 300
         };
       })
     );
@@ -45,20 +55,31 @@ router.post('/process', upload.array('images', 20), async (req: Request, res: Re
  */
 router.post('/nest', async (req: Request, res: Response) => {
   try {
-    const { stickers, sheetWidth, sheetHeight, spacing } = req.body;
+    const { stickers, sheetWidth, sheetHeight, spacing, productionMode, sheetCount } = req.body;
 
     if (!stickers || stickers.length === 0 || !sheetWidth || !sheetHeight) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    const result = nestingService.nestStickers(
-      stickers,
-      sheetWidth,
-      sheetHeight,
-      spacing || 0.0625
-    );
-
-    res.json(result);
+    // Use multi-sheet nesting if in production mode
+    if (productionMode && sheetCount && sheetCount > 1) {
+      const result = nestingService.nestStickersMultiSheet(
+        stickers,
+        sheetWidth,
+        sheetHeight,
+        sheetCount,
+        spacing || 0.0625
+      );
+      res.json(result);
+    } else {
+      const result = nestingService.nestStickers(
+        stickers,
+        sheetWidth,
+        sheetHeight,
+        spacing || 0.0625
+      );
+      res.json(result);
+    }
   } catch (error: any) {
     console.error('Error nesting stickers:', error);
     res.status(500).json({ error: error.message });

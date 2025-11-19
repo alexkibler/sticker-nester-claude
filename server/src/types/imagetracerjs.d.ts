@@ -3,25 +3,31 @@ declare module 'imagetracerjs' {
     ltres?: number;
     qtres?: number;
     pathomit?: number;
+    rightangleenhance?: boolean;
     colorsampling?: number;
     numberofcolors?: number;
     mincolorratio?: number;
     colorquantcycles?: number;
+    layering?: number;
+    strokewidth?: number;
+    linefilter?: boolean;
+    scale?: number;
+    roundcoords?: number;
+    viewbox?: boolean;
+    desc?: boolean;
+    lcpr?: number;
+    qcpr?: number;
     blurradius?: number;
     blurdelta?: number;
-    linefilter?: boolean;
-    rightangleenhance?: boolean;
   }
 
-  export interface TraceData {
-    layers: any[];
-    palette: any[];
-    width: number;
-    height: number;
+  export interface TraceResult {
+    layers: any[][];
   }
 
   const ImageTracer: {
-    imagedataToTracedata(imagedata: any, options?: ImageTracerOptions): TraceData;
+    imagedataToTracedata(imageData: any, options?: ImageTracerOptions): TraceResult;
+    imagedataToSVG(imageData: any, options?: ImageTracerOptions): string;
   };
 
   export default ImageTracer;
