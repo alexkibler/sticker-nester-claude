@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { upload } from '../config/multer';
 import { ImageService } from '../services/image.service';
 import { GeometryService } from '../services/geometry.service';
-import { NestingService, Sticker } from '../services/nesting.service';
+import { NestingService } from '../services/nesting.service';
 
 const router = Router();
 const imageService = new ImageService();
@@ -11,6 +11,7 @@ const nestingService = new NestingService();
 
 /**
  * Process uploaded images and return traced paths
+ * Accepts maxDimension and unit parameters to scale all images uniformly
  */
 router.post('/process', upload.array('images', 100), async (req: Request, res: Response) => {
   try {
@@ -18,6 +19,14 @@ router.post('/process', upload.array('images', 100), async (req: Request, res: R
     if (!files || files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
+
+    // Get max dimension and unit from request body (sent as form fields)
+    const maxDimension = parseFloat(req.body.maxDimension) || 3;
+    const unit = req.body.unit || 'inches';
+    const MM_PER_INCH = 25.4;
+
+    // Convert max dimension to mm for internal processing
+    const targetMaxMM = unit === 'inches' ? maxDimension * MM_PER_INCH : maxDimension;
 
     const processed = await Promise.all(
       files.map(async (file) => {
@@ -32,9 +41,8 @@ router.post('/process', upload.array('images', 100), async (req: Request, res: R
         const widthMM = (bbox.width / 300) * MM_PER_INCH;
         const heightMM = (bbox.height / 300) * MM_PER_INCH;
 
-        // Scale image so largest dimension is 76.2mm (3 inches)
+        // Scale image so largest dimension equals the user-specified max
         const maxDimensionMM = Math.max(widthMM, heightMM);
-        const targetMaxMM = 76.2; // 3 inches in mm
         const scaleFactor = targetMaxMM / maxDimensionMM;
 
         // Calculate final dimensions in mm

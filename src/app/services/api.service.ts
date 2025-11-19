@@ -62,6 +62,8 @@ export class ApiService {
    */
   async processImages(
     files: File[],
+    maxDimension: number,
+    unit: 'inches' | 'mm',
     onProgress?: (progress: number) => void
   ): Promise<ProcessedImage[]> {
     const formData = new FormData();
@@ -69,6 +71,10 @@ export class ApiService {
     files.forEach(file => {
       formData.append('images', file);
     });
+
+    // Add max dimension and unit parameters
+    formData.append('maxDimension', maxDimension.toString());
+    formData.append('unit', unit);
 
     return new Promise((resolve, reject) => {
       this.http.post<{ images: ProcessedImage[] }>(
