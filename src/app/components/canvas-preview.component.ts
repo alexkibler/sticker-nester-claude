@@ -310,34 +310,101 @@ export class CanvasPreviewComponent implements AfterViewInit, OnChanges {
     placement: Placement,
     scale: number
   ): void {
+    // STRICT STATE ISOLATION: Save state before any transformations
     ctx.save();
 
     // Convert placement coordinates (in inches) to pixels
     const x = placement.x * scale;
     const y = placement.y * scale;
+    const width = sticker.inputDimensions.width * scale;
+    const height = sticker.inputDimensions.height * scale;
 
-    // Translate to position
+    // Step 1: Translate to placement position (absolute from packer)
     ctx.translate(x, y);
 
-    // Rotate
-    const angleRad = (placement.rotation * Math.PI) / 180;
-    ctx.rotate(angleRad);
+    // Step 2: Handle rotation with center-based pivot
+    if (placement.rotation && placement.rotation !== 0) {
+      const angleRad = (placement.rotation * Math.PI) / 180;
+      const is90DegRotation = Math.abs(Math.abs(placement.rotation) - 90) < 0.1;
 
-    // Draw image if available
-    if (sticker.bitmap) {
-      const width = sticker.inputDimensions.width * scale;
-      const height = sticker.inputDimensions.height * scale;
+      if (is90DegRotation) {
+        // For 90-degree rotations: rotate around center of ROTATED bounding box
+        // Rotated box dimensions are swapped: height × width
+        // Center of rotated box is at (height/2, width/2) from placement origin
+        ctx.translate(height / 2, width / 2);
+        ctx.rotate(angleRad);
 
-      ctx.globalAlpha = 0.8;
-      ctx.drawImage(sticker.bitmap, 0, 0, width, height);
-      ctx.globalAlpha = 1.0;
+        // Draw image centered using ORIGINAL dimensions
+        if (sticker.bitmap) {
+          ctx.globalAlpha = 0.8;
+          ctx.drawImage(sticker.bitmap, -width / 2, -height / 2, width, height);
+          ctx.globalAlpha = 1.0;
+        }
+
+        // Draw outline
+        if (sticker.simplifiedPath.length > 0) {
+          ctx.strokeStyle = '#999999';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+
+          const scaledPoints = sticker.simplifiedPath.map(p => ({
+            x: (p.x * scale) - width / 2,
+            y: (p.y * scale) - height / 2
+          }));
+
+          ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+          for (let i = 1; i < scaledPoints.length; i++) {
+            ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+      } else {
+        // For arbitrary angles: rotate around center normally
+        ctx.translate(width / 2, height / 2);
+        ctx.rotate(angleRad);
+
+        // Draw image offset by negative half dimensions (no swap for non-90° rotations)
+        if (sticker.bitmap) {
+          ctx.globalAlpha = 0.8;
+          ctx.drawImage(sticker.bitmap, -width / 2, -height / 2, width, height);
+          ctx.globalAlpha = 1.0;
+        }
+
+        // Draw outline
+        if (sticker.simplifiedPath.length > 0) {
+          ctx.strokeStyle = '#999999';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+
+          const scaledPoints = sticker.simplifiedPath.map(p => ({
+            x: (p.x * scale) - width / 2,
+            y: (p.y * scale) - height / 2
+          }));
+
+          ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+          for (let i = 1; i < scaledPoints.length; i++) {
+            ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+      }
+    } else {
+      // No rotation: Draw at origin (0, 0)
+      if (sticker.bitmap) {
+        ctx.globalAlpha = 0.8;
+        ctx.drawImage(sticker.bitmap, 0, 0, width, height);
+        ctx.globalAlpha = 1.0;
+      }
+
+      // Draw outline (subtle)
+      if (sticker.simplifiedPath.length > 0) {
+        this.drawPathOnContext(ctx, sticker.simplifiedPath, '#999999', 1, scale);
+      }
     }
 
-    // Draw outline (subtle)
-    if (sticker.simplifiedPath.length > 0) {
-      this.drawPathOnContext(ctx, sticker.simplifiedPath, '#999999', 1, scale);
-    }
-
+    // STRICT STATE ISOLATION: Restore state after rendering this sticker
     ctx.restore();
   }
 
@@ -372,34 +439,101 @@ export class CanvasPreviewComponent implements AfterViewInit, OnChanges {
   private drawSticker(sticker: StickerSource, placement: Placement): void {
     if (!this.ctx) return;
 
+    // STRICT STATE ISOLATION: Save state before any transformations
     this.ctx.save();
 
     // Convert placement coordinates (in inches) to pixels
     const x = placement.x * this.scale;
     const y = placement.y * this.scale;
+    const width = sticker.inputDimensions.width * this.scale;
+    const height = sticker.inputDimensions.height * this.scale;
 
-    // Translate to position
+    // Step 1: Translate to placement position (absolute from packer)
     this.ctx.translate(x, y);
 
-    // Rotate
-    const angleRad = (placement.rotation * Math.PI) / 180;
-    this.ctx.rotate(angleRad);
+    // Step 2: Handle rotation with center-based pivot
+    if (placement.rotation && placement.rotation !== 0) {
+      const angleRad = (placement.rotation * Math.PI) / 180;
+      const is90DegRotation = Math.abs(Math.abs(placement.rotation) - 90) < 0.1;
 
-    // Draw image if available
-    if (sticker.bitmap) {
-      const width = sticker.inputDimensions.width * this.scale;
-      const height = sticker.inputDimensions.height * this.scale;
+      if (is90DegRotation) {
+        // For 90-degree rotations: rotate around center of ROTATED bounding box
+        // Rotated box dimensions are swapped: height × width
+        // Center of rotated box is at (height/2, width/2) from placement origin
+        this.ctx.translate(height / 2, width / 2);
+        this.ctx.rotate(angleRad);
 
-      this.ctx.globalAlpha = 0.8;
-      this.ctx.drawImage(sticker.bitmap, 0, 0, width, height);
-      this.ctx.globalAlpha = 1.0;
+        // Draw image centered using ORIGINAL dimensions
+        if (sticker.bitmap) {
+          this.ctx.globalAlpha = 0.8;
+          this.ctx.drawImage(sticker.bitmap, -width / 2, -height / 2, width, height);
+          this.ctx.globalAlpha = 1.0;
+        }
+
+        // Draw outline
+        if (sticker.simplifiedPath.length > 0) {
+          this.ctx.strokeStyle = '#999999';
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+
+          const scaledPoints = sticker.simplifiedPath.map(p => ({
+            x: (p.x * this.scale) - width / 2,
+            y: (p.y * this.scale) - height / 2
+          }));
+
+          this.ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+          for (let i = 1; i < scaledPoints.length; i++) {
+            this.ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+          }
+          this.ctx.closePath();
+          this.ctx.stroke();
+        }
+      } else {
+        // For arbitrary angles: rotate around center normally
+        this.ctx.translate(width / 2, height / 2);
+        this.ctx.rotate(angleRad);
+
+        // Draw image offset by negative half dimensions (no swap for non-90° rotations)
+        if (sticker.bitmap) {
+          this.ctx.globalAlpha = 0.8;
+          this.ctx.drawImage(sticker.bitmap, -width / 2, -height / 2, width, height);
+          this.ctx.globalAlpha = 1.0;
+        }
+
+        // Draw outline
+        if (sticker.simplifiedPath.length > 0) {
+          this.ctx.strokeStyle = '#999999';
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+
+          const scaledPoints = sticker.simplifiedPath.map(p => ({
+            x: (p.x * this.scale) - width / 2,
+            y: (p.y * this.scale) - height / 2
+          }));
+
+          this.ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+          for (let i = 1; i < scaledPoints.length; i++) {
+            this.ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+          }
+          this.ctx.closePath();
+          this.ctx.stroke();
+        }
+      }
+    } else {
+      // No rotation: Draw at origin (0, 0)
+      if (sticker.bitmap) {
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.drawImage(sticker.bitmap, 0, 0, width, height);
+        this.ctx.globalAlpha = 1.0;
+      }
+
+      // Draw outline (subtle)
+      if (sticker.simplifiedPath.length > 0) {
+        this.drawPath(sticker.simplifiedPath, '#999999', 1);
+      }
     }
 
-    // Draw outline (subtle)
-    if (sticker.simplifiedPath.length > 0) {
-      this.drawPath(sticker.simplifiedPath, '#999999', 1);
-    }
-
+    // STRICT STATE ISOLATION: Restore state after rendering this sticker
     this.ctx.restore();
   }
 

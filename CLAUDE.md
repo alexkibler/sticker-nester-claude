@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Make sure you're using the Sequential Thinking and Memory MCP servers as much as possible
+
 ## Project Overview
 
 **Mosaic** is a full-stack sticker nesting and layout optimization application for small business print production. It minimizes material waste by efficiently packing irregular sticker shapes onto print sheets.
