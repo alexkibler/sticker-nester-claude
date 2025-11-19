@@ -31,6 +31,7 @@ export interface MultiSheetResult {
   sheets: SheetPlacement[];
   totalUtilization: number;
   quantities: { [stickerId: string]: number };
+  message?: string; // Optional informational message (e.g., when fewer sheets filled than requested)
 }
 
 export class NestingService {
@@ -56,10 +57,12 @@ export class NestingService {
       };
     }
 
-    // Step 1: Calculate target area with 115% buffer (Oversubscribe strategy)
+    // Step 1: Calculate target area with dynamic buffer (Oversubscribe strategy)
+    // Use smaller buffer for large jobs to prevent excessive candidate pools
     const targetArea = pageCount * sheetWidth * sheetHeight;
-    const targetWithBuffer = targetArea * 1.15;
-    console.log(`Target area: ${targetArea.toFixed(2)}, with 115% buffer: ${targetWithBuffer.toFixed(2)}`);
+    const bufferMultiplier = pageCount <= 5 ? 1.15 : pageCount <= 20 ? 1.10 : 1.05;
+    const targetWithBuffer = targetArea * bufferMultiplier;
+    console.log(`Target area: ${targetArea.toFixed(2)}, with ${(bufferMultiplier * 100 - 100).toFixed(0)}% buffer: ${targetWithBuffer.toFixed(2)}`);
 
     // Step 2: Generate candidate pool by cycling through stickers (balanced distribution)
     interface PackingItem extends IRectangle {
@@ -83,8 +86,19 @@ export class NestingService {
       instanceCounter[sticker.id] = 0;
     });
 
-    // Cycle through stickers in round-robin fashion until we reach target area
-    while (currentArea < targetWithBuffer) {
+    // Calculate reasonable cap based on expected items needed
+    // Estimate: average sticker area, target area, and add buffer for safety
+    const avgStickerArea = stickers.reduce((sum, s) => sum + (s.width * s.height), 0) / stickers.length;
+    const estimatedItemsNeeded = Math.ceil(targetWithBuffer / avgStickerArea);
+
+    // Cap at 3x estimated need (allows for packing inefficiency), with absolute max of 5000
+    const calculatedCap = Math.min(estimatedItemsNeeded * 3, 5000);
+    const MAX_CANDIDATE_ITEMS = Math.max(calculatedCap, 500); // At least 500 items
+
+    console.log(`Average sticker area: ${avgStickerArea.toFixed(2)} sq in, estimated items needed: ${estimatedItemsNeeded}, cap: ${MAX_CANDIDATE_ITEMS}`);
+
+    // Cycle through stickers in round-robin fashion until we reach target area OR hit item cap
+    while (currentArea < targetWithBuffer && allItems.length < MAX_CANDIDATE_ITEMS) {
       const sticker = stickers[stickerIndex % stickers.length];
       const itemArea = sticker.width * sticker.height;
 
@@ -106,9 +120,15 @@ export class NestingService {
 
       currentArea += itemArea;
       stickerIndex++;
+
+      // Log progress for large jobs
+      if (allItems.length % 500 === 0) {
+        console.log(`  Generated ${allItems.length} candidates so far...`);
+      }
     }
 
-    console.log(`Generated candidate pool: ${allItems.length} items, total area: ${currentArea.toFixed(2)}`);
+    const cappedNote = allItems.length >= MAX_CANDIDATE_ITEMS ? ' (capped)' : '';
+    console.log(`Generated candidate pool: ${allItems.length} items${cappedNote}, total area: ${currentArea.toFixed(2)}`);
 
     // Step 2: Sort by height descending (Big Rocks First)
     // This ensures large items are placed first and small items backfill gaps
@@ -119,10 +139,11 @@ export class NestingService {
       return (b.width * b.height) - (a.width * a.height);
     });
 
-    console.log('Items sorted by height (descending)');
+    console.log(`Items sorted by height (descending). Starting packing...`);
 
     // Step 3: Use SINGLE packer to pack all items optimally, then distribute bins to sheets
     // This ensures collision-free packing since the packer creates new bins when items don't fit
+    const packStartTime = Date.now();
     const packer = new MaxRectsPacker<PackingItem>(
       sheetWidth,
       sheetHeight,
@@ -138,8 +159,9 @@ export class NestingService {
 
     // Add all items at once - packer will create bins as needed
     packer.addArray(allItems);
+    const packDuration = ((Date.now() - packStartTime) / 1000).toFixed(2);
 
-    console.log(`Packing complete: Packer created ${packer.bins.length} bins for ${allItems.length} items`);
+    console.log(`Packing complete in ${packDuration}s: Created ${packer.bins.length} bins for ${allItems.length} items`);
 
     // If we got more bins than requested sheets, we'll only use the first pageCount bins
     if (packer.bins.length > pageCount) {
@@ -270,10 +292,16 @@ export class NestingService {
       });
     });
 
+    // Step 6: Final filtering to remove empty sheets
+    const finalSheets = sheets.filter(sheet => sheet.placements.length > 0);
+    if (finalSheets.length < sheets.length) {
+      console.log(`Removed ${sheets.length - finalSheets.length} empty sheets from the final result.`);
+    }
+
     console.log('Final packed quantities:', quantities);
 
     return {
-      sheets,
+      sheets: finalSheets,
       totalUtilization: totalUtilizationAfterGapFill,
       quantities,
     };
