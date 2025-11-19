@@ -38,8 +38,8 @@ RUN npm ci --only=production
 # Copy built backend
 COPY --from=backend-builder /app/server/dist ./dist
 
-# Copy built frontend (Angular outputs to dist/sticker-nesting/browser by default)
-COPY --from=frontend-builder /app/dist/sticker-nesting/browser ./public
+# Copy built frontend (Angular outputs to dist/mosaic by default)
+COPY --from=frontend-builder /app/dist/mosaic/browser ./public
 
 # Expose port
 EXPOSE 3000
