@@ -65,8 +65,10 @@ export class NestingService {
     interface PackingItem extends IRectangle {
       stickerId: string; // Original sticker ID
       instanceId: string; // Unique ID for this instance
-      width: number;
-      height: number;
+      width: number;      // Inflated width (includes spacing)
+      height: number;     // Inflated height (includes spacing)
+      originalWidth: number;  // Original width (for utilization calc)
+      originalHeight: number; // Original height (for utilization calc)
       x: number;
       y: number;
     }
@@ -89,11 +91,15 @@ export class NestingService {
       const instanceId = `${sticker.id}_${instanceCounter[sticker.id]}`;
       instanceCounter[sticker.id]++;
 
+      // IMPORTANT: Inflate dimensions to include spacing for proper collision detection
+      // This ensures items maintain minimum spacing when packed
       allItems.push({
         stickerId: sticker.id,
         instanceId: instanceId,
-        width: sticker.width,
-        height: sticker.height,
+        width: sticker.width + spacing,  // Add spacing to width
+        height: sticker.height + spacing, // Add spacing to height
+        originalWidth: sticker.width,     // Store original dimensions
+        originalHeight: sticker.height,   // Store original dimensions
         x: 0,
         y: 0,
       });
@@ -117,18 +123,19 @@ export class NestingService {
 
     // Step 3: Create exactly pageCount packers (one per sheet)
     // Pack items into these fixed sheets to maximize utilization
+    // Note: No padding/border in packer config because we inflated item dimensions to include spacing
     const packers: MaxRectsPacker<PackingItem>[] = [];
     for (let i = 0; i < pageCount; i++) {
       packers.push(new MaxRectsPacker<PackingItem>(
         sheetWidth,
         sheetHeight,
-        spacing,
+        0, // No padding - we handle spacing via inflated dimensions
         {
           smart: true,
           pot: false,
           square: false,
           allowRotation: true,
-          border: spacing,
+          border: 0, // No border - items already include spacing buffer
         }
       ));
     }
@@ -191,9 +198,10 @@ export class NestingService {
         };
       });
 
-      // Calculate utilization
+      // Calculate utilization using ORIGINAL dimensions (not inflated)
       const usedArea = bin.rects.reduce((sum, rect) => {
-        return sum + (rect.width * rect.height);
+        const item = rect as PackingItem;
+        return sum + (item.originalWidth * item.originalHeight);
       }, 0);
       const utilization = (usedArea / singleSheetArea) * 100;
 
@@ -206,13 +214,13 @@ export class NestingService {
       console.log(`  Sheet ${index + 1}: ${placements.length} items, ${utilization.toFixed(1)}% utilization`);
     });
 
-    // Calculate total utilization across all sheets
+    // Calculate total utilization across all sheets using ORIGINAL dimensions
     const totalArea = singleSheetArea * sheets.length;
     const totalUsedArea = sheets.reduce((sum, sheet) => {
       return sum + sheet.placements.reduce((itemSum, p) => {
-        // Find the original item dimensions
+        // Find the original item dimensions (not inflated)
         const item = allItems.find(i => i.instanceId === p.id);
-        return itemSum + (item ? item.width * item.height : 0);
+        return itemSum + (item ? item.originalWidth * item.originalHeight : 0);
       }, 0);
     }, 0);
     const totalUtilization = (totalUsedArea / totalArea) * 100;
@@ -251,8 +259,10 @@ export class NestingService {
     // Use MaxRects for single sheet as well
     interface PackingItem extends IRectangle {
       stickerId: string;
-      width: number;
-      height: number;
+      width: number;      // Inflated width (includes spacing)
+      height: number;     // Inflated height (includes spacing)
+      originalWidth: number;  // Original width (for utilization calc)
+      originalHeight: number; // Original height (for utilization calc)
       x: number;
       y: number;
     }
@@ -265,25 +275,28 @@ export class NestingService {
     });
 
     // Create packer for single sheet
+    // Note: No padding/border because we inflate item dimensions to include spacing
     const packer = new MaxRectsPacker<PackingItem>(
       sheetWidth,
       sheetHeight,
-      spacing,  // padding between items
+      0,  // No padding - we handle spacing via inflated dimensions
       {
         smart: true,
         pot: false,
         square: false,
         allowRotation: true,
-        border: spacing,  // edge spacing
+        border: 0,  // No border - items already include spacing buffer
       }
     );
 
-    // Add all items
+    // Add all items with inflated dimensions
     sorted.forEach(sticker => {
       packer.add({
         stickerId: sticker.id,
-        width: sticker.width,
-        height: sticker.height,
+        width: sticker.width + spacing,   // Inflate width
+        height: sticker.height + spacing, // Inflate height
+        originalWidth: sticker.width,     // Store original
+        originalHeight: sticker.height,   // Store original
         x: 0,
         y: 0,
       });
@@ -291,10 +304,12 @@ export class NestingService {
 
     // Extract placements from first bin only (single sheet mode)
     const placements: Placement[] = [];
+    const placedItems: PackingItem[] = [];
     if (packer.bins.length > 0) {
       const bin = packer.bins[0];
       placements.push(...bin.rects.map((rect) => {
         const item = rect as PackingItem;
+        placedItems.push(item);
         return {
           id: item.stickerId,
           x: rect.x,
@@ -304,10 +319,9 @@ export class NestingService {
       }));
     }
 
-    // Calculate utilization
-    const usedArea = stickers.reduce((sum, s) => {
-      const placed = placements.find(p => p.id === s.id);
-      return sum + (placed ? s.width * s.height : 0);
+    // Calculate utilization using ORIGINAL dimensions (not inflated)
+    const usedArea = placedItems.reduce((sum, item) => {
+      return sum + (item.originalWidth * item.originalHeight);
     }, 0);
 
     const sheetArea = sheetWidth * sheetHeight;
