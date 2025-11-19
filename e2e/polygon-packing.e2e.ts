@@ -8,6 +8,11 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// ES module compatibility: get __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Configuration
 const FRONTEND_URL = 'http://localhost:4201';
@@ -241,8 +246,8 @@ async function runTests(): Promise<TestResult[]> {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu'
-      ],
-      executablePath: '/usr/bin/chromium-browser'
+      ]
+      // Let Puppeteer find the browser automatically
     });
 
     const page = await browser.newPage();

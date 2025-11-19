@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="850" xmlns="http://www.w3.org/2000/svg">
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" font-size="20" font-weight="bold">Polygon Packing (Actual Shapes)</text>
+
+  <!-- Sheet background -->
+  <rect x="50" y="50" width="700" height="700" fill="white" stroke="black" stroke-width="2"/>
+
+  <!-- Placements -->
+  <path d="M 108.33 50.00 L 121.17 90.83 L 166.67 90.83 L 129.33 116.50 L 142.17 166.67 L 108.33 134.00 L 74.50 166.67 L 87.33 116.50 L 50.00 90.83 L 95.50 90.83 Z" fill="#FF6B6B" fill-opacity="0.6" stroke="#333" stroke-width="1.5"/>
+  <path d="M 233.75 50.00 L 292.08 79.17 L 292.08 137.50 L 233.75 166.67 L 175.42 137.50 L 175.42 79.17 Z" fill="#4ECDC4" fill-opacity="0.6" stroke="#333" stroke-width="1.5"/>
+  <path d="M 347.50 50.00 L 405.83 166.67 L 289.17 166.67 Z" fill="#45B7D1" fill-opacity="0.6" stroke="#333" stroke-width="1.5"/>
+
+  <text x="400" y="780" text-anchor="middle" font-size="16">Placements: 3 | Sheet: 12" × 12"</text>
+</svg>

@@ -41,6 +41,7 @@
     "@angular/build": "^20.3.10",
     "@angular/cli": "^20.3.10",
     "@angular/compiler-cli": "^20.3.0",
+    "@puppeteer/browsers": "^2.10.13",
     "@types/jasmine": "~5.1.0",
     "@types/node": "^24.10.1",
     "@types/pdfkit": "^0.17.3",

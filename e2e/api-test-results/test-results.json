@@ -1,0 +1,54 @@
+{
+  "rectanglePacking": {
+    "placements": [
+      {
+        "id": "star-1",
+        "x": 0,
+        "y": 0,
+        "rotation": 0
+      },
+      {
+        "id": "hexagon-1",
+        "x": 52.387499999999996,
+        "y": 0,
+        "rotation": 0
+      },
+      {
+        "id": "triangle-1",
+        "x": 0,
+        "y": 52.387499999999996,
+        "rotation": 0
+      }
+    ],
+    "utilization": 8.333333333333336,
+    "fitness": 7741.92
+  },
+  "polygonPacking": {
+    "placements": [
+      {
+        "id": "star-1",
+        "x": 0,
+        "y": 0,
+        "rotation": 0
+      },
+      {
+        "id": "hexagon-1",
+        "x": 54.61000000000001,
+        "y": 0,
+        "rotation": 0
+      },
+      {
+        "id": "triangle-1",
+        "x": 104.13999999999983,
+        "y": 0,
+        "rotation": 0
+      }
+    ],
+    "utilization": 5.364652777777778,
+    "fitness": 7741.92
+  },
+  "comparison": {
+    "itemDifference": 0,
+    "utilizationDifference": -2.968680555555558
+  }
+}
