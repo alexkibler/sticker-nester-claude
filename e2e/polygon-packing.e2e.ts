@@ -186,8 +186,9 @@ async function runNesting(page: Page): Promise<{ utilization: number; placementC
  */
 async function takeScreenshot(page: Page, filename: string): Promise<string> {
   const filepath = path.join(SCREENSHOT_DIR, filename);
+  // Type assertion to satisfy Puppeteer's strict path typing
   await page.screenshot({
-    path: filepath,
+    path: filepath as `${string}.png`,
     fullPage: true
   });
   console.log(`✓ Screenshot saved: ${filename}`);
