@@ -55,13 +55,14 @@ import { SheetPlacement } from '../services/api.service';
       background-color: #f5f5f5;
       border: 1px solid #ddd;
       border-radius: 4px;
-      overflow: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
       padding: 20px;
     }
 
     .sheets-wrapper {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
       gap: 20px;
       width: 100%;
     }
@@ -117,6 +118,38 @@ import { SheetPlacement } from '../services/api.service';
 
     .stats div {
       margin: 3px 0;
+    }
+
+    @media (max-width: 768px) {
+      .canvas-container {
+        min-height: 400px;
+        padding: 15px;
+      }
+
+      .sheets-wrapper {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .canvas-container {
+        min-height: 300px;
+        padding: 10px;
+      }
+
+      .sheets-wrapper {
+        gap: 10px;
+      }
+
+      .sheet-title {
+        font-size: 14px;
+      }
+
+      .stats {
+        font-size: 12px;
+        padding: 8px 12px;
+      }
     }
   `]
 })
