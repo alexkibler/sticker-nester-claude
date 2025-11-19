@@ -258,8 +258,9 @@ export interface PackingProgress {
   current: number;
   total: number;
   itemId: string;
-  status: 'trying' | 'placed' | 'failed';
+  status: 'trying' | 'placed' | 'failed' | 'estimating' | 'warning' | 'expanding';
   message: string;
+  sheetCount?: number; // Current number of sheets being used
 }
 
 export type ProgressCallback = (progress: PackingProgress) => void;
@@ -273,6 +274,18 @@ export interface PlacementFailure {
   rotationsTried: number;
   gridUtilization: number;
   reason: string;
+}
+
+/**
+ * Space estimation result
+ */
+export interface SpaceEstimate {
+  totalItemArea: number;
+  totalSheetArea: number;
+  estimatedUtilization: number;
+  minimumPagesNeeded: number;
+  canFitInRequestedPages: boolean;
+  warning?: string;
 }
 
 /**
@@ -498,4 +511,56 @@ export class PolygonPacker {
   getUtilization(): number {
     return this.grid.getUtilization();
   }
+}
+
+/**
+ * Estimate if items can fit in requested pages
+ * Uses conservative estimates to fail fast
+ */
+export function estimateSpaceRequirements(
+  polygons: PackablePolygon[],
+  sheetWidth: number,
+  sheetHeight: number,
+  requestedPages: number,
+  spacing: number = 0.0625
+): SpaceEstimate {
+  // Calculate total area of all items
+  const totalItemArea = polygons.reduce((sum, p) => sum + p.area, 0);
+
+  // Calculate available sheet area
+  const singleSheetArea = sheetWidth * sheetHeight;
+  const totalSheetArea = singleSheetArea * requestedPages;
+
+  // Conservative packing efficiency estimates based on empirical data
+  // Polygon packing typically achieves 50-70% utilization
+  // We use 60% as a reasonable estimate for early detection
+  const EXPECTED_EFFICIENCY = 0.60;
+  const CONSERVATIVE_EFFICIENCY = 0.50; // Fail-fast threshold
+
+  const estimatedUtilization = totalItemArea / totalSheetArea;
+  const conservativeUtilization = totalItemArea / (totalSheetArea * CONSERVATIVE_EFFICIENCY);
+
+  // Estimate minimum pages needed (conservative)
+  const minimumPagesNeeded = Math.ceil(totalItemArea / (singleSheetArea * EXPECTED_EFFICIENCY));
+
+  // Determine if items can fit
+  const canFitInRequestedPages = conservativeUtilization <= 1.0;
+
+  // Generate warning if needed
+  let warning: string | undefined;
+  if (!canFitInRequestedPages) {
+    const shortage = Math.ceil(minimumPagesNeeded - requestedPages);
+    warning = `Insufficient space: ${polygons.length} items need ~${minimumPagesNeeded} pages (requested ${requestedPages}). Add ${shortage} more page(s).`;
+  } else if (estimatedUtilization > 0.80) {
+    warning = `Tight fit warning: ${polygons.length} items will fill ${(estimatedUtilization * 100).toFixed(0)}% of ${requestedPages} page(s). Some items may not fit.`;
+  }
+
+  return {
+    totalItemArea,
+    totalSheetArea,
+    estimatedUtilization,
+    minimumPagesNeeded,
+    canFitInRequestedPages,
+    warning,
+  };
 }

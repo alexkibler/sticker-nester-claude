@@ -577,6 +577,10 @@ export class NestingService {
   /**
    * Nest stickers across multiple sheets using POLYGON packing with Oversubscribe and Sort strategy
    * Uses actual polygon shapes instead of bounding rectangles
+   *
+   * TWO MODES:
+   * 1. Pack All Items (packAllItems=true) - Auto-expand pages to fit ALL items (production default)
+   * 2. Fixed Pages (packAllItems=false) - Pack as many as possible in N pages with early failure detection
    */
   nestStickersMultiSheetPolygon(
     stickers: Sticker[],
@@ -586,9 +590,17 @@ export class NestingService {
     spacing: number = 0.0625,
     cellsPerInch: number = 100,
     stepSize: number = 0.05,
-    rotations: number[] = [0, 90, 180, 270]
+    rotations: number[] = [0, 90, 180, 270],
+    packAllItems: boolean = true // TRUE = auto-expand (production), FALSE = fixed pages
   ): MultiSheetResult {
-    console.log(`Polygon multi-sheet packing: ${stickers.length} unique designs across ${pageCount} pages`);
+    const mode = packAllItems ? 'PACK ALL ITEMS (auto-expand)' : 'FIXED PAGES';
+    console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
+    console.log(`║ Polygon Multi-Sheet Packing: ${mode.padEnd(33)}║`);
+    console.log(`╠══════════════════════════════════════════════════════════════╣`);
+    console.log(`║ Items: ${stickers.length.toString().padEnd(53)}║`);
+    console.log(`║ Initial pages: ${pageCount.toString().padEnd(45)}║`);
+    console.log(`║ Mode: ${(packAllItems ? 'Pack ALL items (production)' : 'Fill N pages (preview)').padEnd(52)}║`);
+    console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
 
     // Handle edge cases
     if (stickers.length === 0 || pageCount === 0) {
