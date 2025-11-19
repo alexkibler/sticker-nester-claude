@@ -1,6 +1,5 @@
 import { Point } from './image.service';
-import { GeometryService } from './geometry.service';
-import { MaxRectsPacker, Rectangle, IRectangle } from 'maxrects-packer';
+import { MaxRectsPacker, IRectangle } from 'maxrects-packer';
 
 export interface Sticker {
   id: string;
@@ -35,23 +34,34 @@ export interface MultiSheetResult {
 }
 
 export class NestingService {
-  private geometry = new GeometryService();
-
   /**
-   * Nest stickers across multiple sheets for production runs using MaxRects algorithm
+   * Nest stickers across multiple sheets using MaxRects algorithm with Oversubscribe and Sort strategy
+   * Generates a balanced candidate pool by cycling through all stickers until reaching 115% of target area
    */
   nestStickersMultiSheet(
     stickers: Sticker[],
     sheetWidth: number,
     sheetHeight: number,
-    quantities: { [stickerId: string]: number },
-    spacing: number = 0.0625,
-    maxSheets: number = 5
+    pageCount: number,
+    spacing: number = 0.0625
   ): MultiSheetResult {
-    console.log(`Multi-sheet nesting: ${stickers.length} unique designs`);
-    console.log('Requested quantities:', quantities);
+    console.log(`Multi-sheet nesting: ${stickers.length} unique designs across ${pageCount} pages`);
 
-    // Step 1: Create flat array of all items based on user quantities
+    // Handle edge cases
+    if (stickers.length === 0 || pageCount === 0) {
+      return {
+        sheets: [],
+        totalUtilization: 0,
+        quantities: {},
+      };
+    }
+
+    // Step 1: Calculate target area with 115% buffer (Oversubscribe strategy)
+    const targetArea = pageCount * sheetWidth * sheetHeight;
+    const targetWithBuffer = targetArea * 1.15;
+    console.log(`Target area: ${targetArea.toFixed(2)}, with 115% buffer: ${targetWithBuffer.toFixed(2)}`);
+
+    // Step 2: Generate candidate pool by cycling through stickers (balanced distribution)
     interface PackingItem extends IRectangle {
       stickerId: string; // Original sticker ID
       instanceId: string; // Unique ID for this instance
@@ -62,25 +72,37 @@ export class NestingService {
     }
 
     const allItems: PackingItem[] = [];
-    let totalItems = 0;
+    let currentArea = 0;
+    let stickerIndex = 0;
+    let instanceCounter: { [stickerId: string]: number } = {};
 
-    stickers.forEach((sticker) => {
-      const quantity = quantities[sticker.id] || 0;
-      totalItems += quantity;
-
-      for (let i = 0; i < quantity; i++) {
-        allItems.push({
-          stickerId: sticker.id,
-          instanceId: `${sticker.id}_${i}`,
-          width: sticker.width,
-          height: sticker.height,
-          x: 0,
-          y: 0,
-        });
-      }
+    // Initialize instance counters
+    stickers.forEach(sticker => {
+      instanceCounter[sticker.id] = 0;
     });
 
-    console.log(`Total items to pack: ${totalItems}`);
+    // Cycle through stickers in round-robin fashion until we reach target area
+    while (currentArea < targetWithBuffer) {
+      const sticker = stickers[stickerIndex % stickers.length];
+      const itemArea = sticker.width * sticker.height;
+
+      const instanceId = `${sticker.id}_${instanceCounter[sticker.id]}`;
+      instanceCounter[sticker.id]++;
+
+      allItems.push({
+        stickerId: sticker.id,
+        instanceId: instanceId,
+        width: sticker.width,
+        height: sticker.height,
+        x: 0,
+        y: 0,
+      });
+
+      currentArea += itemArea;
+      stickerIndex++;
+    }
+
+    console.log(`Generated candidate pool: ${allItems.length} items, total area: ${currentArea.toFixed(2)}`);
 
     // Step 2: Sort by height descending (Big Rocks First)
     // This ensures large items are placed first and small items backfill gaps
@@ -93,10 +115,10 @@ export class NestingService {
 
     console.log('Items sorted by height (descending)');
 
-    // Step 3: Create exactly maxSheets packers (one per sheet)
+    // Step 3: Create exactly pageCount packers (one per sheet)
     // Pack items into these fixed sheets to maximize utilization
     const packers: MaxRectsPacker<PackingItem>[] = [];
-    for (let i = 0; i < maxSheets; i++) {
+    for (let i = 0; i < pageCount; i++) {
       packers.push(new MaxRectsPacker<PackingItem>(
         sheetWidth,
         sheetHeight,
@@ -111,35 +133,35 @@ export class NestingService {
       ));
     }
 
-    // Pack items using round-robin strategy for better distribution
+    // Pack items using greedy fill strategy - fill each sheet completely before moving to next
     let packedCount = 0;
-    let currentPackerIndex = 0;
 
     for (const item of allItems) {
       let packed = false;
 
-      // Try to pack in the current packer first
-      for (let attempts = 0; attempts < maxSheets && !packed; attempts++) {
-        const packer = packers[currentPackerIndex];
+      // Try to pack in each available sheet until we find one with space
+      for (let i = 0; i < pageCount && !packed; i++) {
+        const packer = packers[i];
+        const beforeCount = packer.bins.length > 0 ? packer.bins[0].rects.length : 0;
+
         packer.add(item);
 
-        // Check if item was successfully packed
-        if (packer.bins.length > 0 && packer.bins[0].rects.some(r => (r as any).instanceId === item.instanceId)) {
+        const afterCount = packer.bins.length > 0 ? packer.bins[0].rects.length : 0;
+
+        // Check if item was successfully added
+        if (afterCount > beforeCount) {
           packed = true;
           packedCount++;
-        } else {
-          // Item didn't fit, try next packer
-          currentPackerIndex = (currentPackerIndex + 1) % maxSheets;
+          break;
         }
       }
 
-      // Move to next packer for round-robin
-      if (packed) {
-        currentPackerIndex = (currentPackerIndex + 1) % maxSheets;
+      if (!packed) {
+        console.log(`Warning: Could not pack item ${item.instanceId}`);
       }
     }
 
-    console.log(`Packing complete: ${packedCount}/${totalItems} items packed into ${maxSheets} sheets`);
+    console.log(`Packing complete: ${packedCount}/${allItems.length} items packed into ${pageCount} sheets`);
 
     // Step 4: Extract placements from each packer's first bin
     const sheets: SheetPlacement[] = [];
@@ -197,21 +219,24 @@ export class NestingService {
 
     console.log(`Total utilization: ${totalUtilization.toFixed(1)}%`);
 
+    // Calculate quantities from packed results
+    const quantities: { [stickerId: string]: number } = {};
+    sheets.forEach(sheet => {
+      sheet.placements.forEach(placement => {
+        const item = allItems.find(i => i.instanceId === placement.id);
+        if (item) {
+          quantities[item.stickerId] = (quantities[item.stickerId] || 0) + 1;
+        }
+      });
+    });
+
+    console.log('Packed quantities:', quantities);
+
     return {
       sheets,
       totalUtilization,
       quantities,
     };
-  }
-
-  /**
-   * Helper to calculate used area from placements
-   */
-  private calculateUsedArea(placements: Placement[], stickers: Sticker[]): number {
-    return placements.reduce((sum, p) => {
-      const sticker = stickers.find(s => s.id === p.id);
-      return sum + (sticker ? sticker.width * sticker.height : 0);
-    }, 0);
   }
 
   /**
