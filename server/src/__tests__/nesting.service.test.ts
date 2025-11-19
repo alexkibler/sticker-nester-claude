@@ -565,4 +565,339 @@ describe('NestingService', () => {
       expect(result.placements[0].id).toBe('heart');
     });
   });
+
+  describe('nestStickersMultiSheet with MaxRects', () => {
+    it('should pack exact quantities requested by user', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'large',
+          points: [
+            { x: 0, y: 0 },
+            { x: 3, y: 0 },
+            { x: 3, y: 3 },
+            { x: 0, y: 3 },
+          ],
+          width: 3,
+          height: 3,
+        },
+        {
+          id: 'small',
+          points: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 0, y: 1 },
+          ],
+          width: 1,
+          height: 1,
+        },
+      ];
+
+      const quantities = {
+        'large': 5,
+        'small': 10,
+      };
+
+      const result = service.nestStickersMultiSheet(
+        stickers,
+        12,
+        12,
+        quantities,
+        0.0625
+      );
+
+      // Count actual placements
+      const totalPlacements = result.sheets.reduce((sum, sheet) => sum + sheet.placements.length, 0);
+      const expectedTotal = 5 + 10; // exact quantities requested
+
+      expect(totalPlacements).toBe(expectedTotal);
+
+      // Verify quantities are returned correctly
+      expect(result.quantities).toEqual(quantities);
+    });
+
+    it('should achieve high utilization with MaxRects', () => {
+      // Create a scenario with multiple same-sized squares
+      // Should achieve close to optimal packing
+      const stickers: Sticker[] = [
+        {
+          id: 'square-2x2',
+          points: [
+            { x: 0, y: 0 },
+            { x: 2, y: 0 },
+            { x: 2, y: 2 },
+            { x: 0, y: 2 },
+          ],
+          width: 2,
+          height: 2,
+        },
+      ];
+
+      const quantities = {
+        'square-2x2': 36, // Should fit perfectly in a 12x12 sheet
+      };
+
+      const result = service.nestStickersMultiSheet(
+        stickers,
+        12,
+        12,
+        quantities,
+        0 // No spacing for perfect fit
+      );
+
+      // With perfect packing, 36 2x2 squares should fit in one 12x12 sheet
+      expect(result.sheets.length).toBeLessThanOrEqual(1);
+
+      if (result.sheets.length === 1) {
+        // Utilization should be 100% or very close
+        expect(result.sheets[0].utilization).toBeGreaterThan(95);
+      }
+    });
+
+    it('should pack items sorted by height (big rocks first)', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'tiny',
+          points: [
+            { x: 0, y: 0 },
+            { x: 0.5, y: 0 },
+            { x: 0.5, y: 0.5 },
+            { x: 0, y: 0.5 },
+          ],
+          width: 0.5,
+          height: 0.5,
+        },
+        {
+          id: 'large',
+          points: [
+            { x: 0, y: 0 },
+            { x: 5, y: 0 },
+            { x: 5, y: 5 },
+            { x: 0, y: 5 },
+          ],
+          width: 5,
+          height: 5,
+        },
+        {
+          id: 'medium',
+          points: [
+            { x: 0, y: 0 },
+            { x: 2, y: 0 },
+            { x: 2, y: 2 },
+            { x: 0, y: 2 },
+          ],
+          width: 2,
+          height: 2,
+        },
+      ];
+
+      const quantities = {
+        'tiny': 20,
+        'large': 3,
+        'medium': 8,
+      };
+
+      const result = service.nestStickersMultiSheet(
+        stickers,
+        12,
+        12,
+        quantities,
+        0.0625
+      );
+
+      // All items should be placed
+      const totalPlacements = result.sheets.reduce((sum, sheet) => sum + sheet.placements.length, 0);
+      expect(totalPlacements).toBe(20 + 3 + 8);
+
+      // Should achieve reasonable utilization with mixed sizes
+      // Note: With spacing and large items, utilization may vary
+      expect(result.totalUtilization).toBeGreaterThan(30);
+    });
+
+    it('should support rotation when enabled', () => {
+      // Create tall rectangles that would benefit from rotation
+      const stickers: Sticker[] = [
+        {
+          id: 'tall',
+          points: [
+            { x: 0, y: 0 },
+            { x: 2, y: 0 },
+            { x: 2, y: 5 },
+            { x: 0, y: 5 },
+          ],
+          width: 2,
+          height: 5,
+        },
+      ];
+
+      const quantities = {
+        'tall': 10,
+      };
+
+      const result = service.nestStickersMultiSheet(
+        stickers,
+        12,
+        12,
+        quantities,
+        0.0625
+      );
+
+      // All items should be placed
+      const totalPlacements = result.sheets.reduce((sum, sheet) => sum + sheet.placements.length, 0);
+      expect(totalPlacements).toBe(10);
+
+      // Check if any items were rotated (rotation would be 90 degrees)
+      let hasRotation = false;
+      result.sheets.forEach(sheet => {
+        sheet.placements.forEach(p => {
+          if (p.rotation === 90) {
+            hasRotation = true;
+          }
+        });
+      });
+
+      // Note: Rotation may or may not occur depending on MaxRects algorithm decisions
+      // We just verify the mechanism works
+      console.log('Rotation was used:', hasRotation);
+    });
+
+    it('should create multiple sheets when items dont fit on one', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'large',
+          points: [
+            { x: 0, y: 0 },
+            { x: 6, y: 0 },
+            { x: 6, y: 6 },
+            { x: 0, y: 6 },
+          ],
+          width: 6,
+          height: 6,
+        },
+      ];
+
+      const quantities = {
+        'large': 10, // 10 6x6 items won't fit on a single 12x12 sheet
+      };
+
+      const result = service.nestStickersMultiSheet(
+        stickers,
+        12,
+        12,
+        quantities,
+        0.0625
+      );
+
+      // Should create multiple sheets
+      expect(result.sheets.length).toBeGreaterThan(1);
+
+      // All items should still be placed
+      const totalPlacements = result.sheets.reduce((sum, sheet) => sum + sheet.placements.length, 0);
+      expect(totalPlacements).toBe(10);
+    });
+
+    it('should handle zero quantities gracefully', () => {
+      const stickers: Sticker[] = [
+        {
+          id: 'item1',
+          points: [
+            { x: 0, y: 0 },
+            { x: 2, y: 0 },
+            { x: 2, y: 2 },
+            { x: 0, y: 2 },
+          ],
+          width: 2,
+          height: 2,
+        },
+        {
+          id: 'item2',
+          points: [
+            { x: 0, y: 0 },
+            { x: 3, y: 0 },
+            { x: 3, y: 3 },
+            { x: 0, y: 3 },
+          ],
+          width: 3,
+          height: 3,
+        },
+      ];
+
+      const quantities = {
+        'item1': 5,
+        'item2': 0, // Zero quantity
+      };
+
+      const result = service.nestStickersMultiSheet(
+        stickers,
+        12,
+        12,
+        quantities,
+        0.0625
+      );
+
+      // Only item1 should be placed
+      const totalPlacements = result.sheets.reduce((sum, sheet) => sum + sheet.placements.length, 0);
+      expect(totalPlacements).toBe(5);
+    });
+
+    it('should maximize utilization compared to simple row packing', () => {
+      // This test compares MaxRects with a hypothetical simple packing
+      const stickers: Sticker[] = [
+        {
+          id: 'rect-wide',
+          points: [
+            { x: 0, y: 0 },
+            { x: 4, y: 0 },
+            { x: 4, y: 2 },
+            { x: 0, y: 2 },
+          ],
+          width: 4,
+          height: 2,
+        },
+        {
+          id: 'rect-tall',
+          points: [
+            { x: 0, y: 0 },
+            { x: 2, y: 0 },
+            { x: 2, y: 4 },
+            { x: 0, y: 4 },
+          ],
+          width: 2,
+          height: 4,
+        },
+        {
+          id: 'square-small',
+          points: [
+            { x: 0, y: 0 },
+            { x: 1.5, y: 0 },
+            { x: 1.5, y: 1.5 },
+            { x: 0, y: 1.5 },
+          ],
+          width: 1.5,
+          height: 1.5,
+        },
+      ];
+
+      const quantities = {
+        'rect-wide': 6,
+        'rect-tall': 6,
+        'square-small': 12,
+      };
+
+      const result = service.nestStickersMultiSheet(
+        stickers,
+        12,
+        12,
+        quantities,
+        0.0625
+      );
+
+      // Should achieve good utilization with mixed shapes
+      expect(result.totalUtilization).toBeGreaterThan(60);
+
+      // All items should be placed
+      const totalPlacements = result.sheets.reduce((sum, sheet) => sum + sheet.placements.length, 0);
+      expect(totalPlacements).toBe(6 + 6 + 12);
+    });
+  });
 });

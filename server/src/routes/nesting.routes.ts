@@ -55,20 +55,20 @@ router.post('/process', upload.array('images', 20), async (req: Request, res: Re
  */
 router.post('/nest', async (req: Request, res: Response) => {
   try {
-    const { stickers, sheetWidth, sheetHeight, spacing, productionMode, sheetCount } = req.body;
+    const { stickers, sheetWidth, sheetHeight, spacing, productionMode, quantities } = req.body;
 
     if (!stickers || stickers.length === 0 || !sheetWidth || !sheetHeight) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    // Use multi-sheet nesting if in production mode
-    if (productionMode && sheetCount && sheetCount > 1) {
+    // Use multi-sheet nesting if in production mode with quantities
+    if (productionMode && quantities) {
       const result = nestingService.nestStickersMultiSheet(
         stickers,
         sheetWidth,
         sheetHeight,
-        sheetCount,
-        spacing || 0.0625
+        quantities,
+        spacing !== undefined ? spacing : 0.0625
       );
       res.json(result);
     } else {
@@ -76,7 +76,7 @@ router.post('/nest', async (req: Request, res: Response) => {
         stickers,
         sheetWidth,
         sheetHeight,
-        spacing || 0.0625
+        spacing !== undefined ? spacing : 0.0625
       );
       res.json(result);
     }

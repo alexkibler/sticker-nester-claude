@@ -1,5 +1,6 @@
 import { Point } from './image.service';
 import { GeometryService } from './geometry.service';
+import { MaxRectsPacker, Rectangle, IRectangle } from 'maxrects-packer';
 
 export interface Sticker {
   id: string;
@@ -37,145 +38,125 @@ export class NestingService {
   private geometry = new GeometryService();
 
   /**
-   * Nest stickers across multiple sheets for production runs
+   * Nest stickers across multiple sheets for production runs using MaxRects algorithm
    */
   nestStickersMultiSheet(
     stickers: Sticker[],
     sheetWidth: number,
     sheetHeight: number,
-    sheetCount: number,
+    quantities: { [stickerId: string]: number },
     spacing: number = 0.0625
   ): MultiSheetResult {
-    // Calculate total available area
-    const singleSheetArea = sheetWidth * sheetHeight;
-    const totalArea = singleSheetArea * sheetCount;
+    console.log(`Multi-sheet nesting: ${stickers.length} unique designs`);
+    console.log('Requested quantities:', quantities);
 
-    // Calculate average sticker area
-    const stickerAreas = stickers.map(s => s.width * s.height);
-    const avgStickerArea = stickerAreas.reduce((sum, area) => sum + area, 0) / stickers.length;
+    // Step 1: Create flat array of all items based on user quantities
+    interface PackingItem extends IRectangle {
+      stickerId: string; // Original sticker ID
+      instanceId: string; // Unique ID for this instance
+      width: number;
+      height: number;
+      x: number;
+      y: number;
+    }
 
-    // Estimate how many total stickers we can fit per sheet
-    // Use a more aggressive estimate - assume we can fit many more
-    const stickersPerSheet = Math.floor(singleSheetArea / (avgStickerArea * 1.5)); // Account for spacing
-    const maxStickersTotal = stickersPerSheet * sheetCount;
-
-    // Distribute quantities evenly across sticker types
-    const copiesPerSticker = Math.max(1, Math.floor(maxStickersTotal / stickers.length));
-
-    console.log(`Multi-sheet nesting: ${sheetCount} sheets, ${stickers.length} designs`);
-    console.log(`Estimated ${stickersPerSheet} per sheet = ${maxStickersTotal} total`);
-    console.log(`Creating ${copiesPerSticker} copies of each design`);
-
-    // Create expanded sticker list with copies
-    const expandedStickers: Sticker[] = [];
-    const quantities: { [stickerId: string]: number } = {};
+    const allItems: PackingItem[] = [];
+    let totalItems = 0;
 
     stickers.forEach((sticker) => {
-      quantities[sticker.id] = copiesPerSticker;
-      for (let i = 0; i < copiesPerSticker; i++) {
-        expandedStickers.push({
-          ...sticker,
-          id: `${sticker.id}_copy${i}`,
+      const quantity = quantities[sticker.id] || 0;
+      totalItems += quantity;
+
+      for (let i = 0; i < quantity; i++) {
+        allItems.push({
+          stickerId: sticker.id,
+          instanceId: `${sticker.id}_${i}`,
+          width: sticker.width,
+          height: sticker.height,
+          x: 0,
+          y: 0,
         });
       }
     });
 
-    // Don't sort - use round-robin distribution for better balance
-    const sorted = [...expandedStickers];
+    console.log(`Total items to pack: ${totalItems}`);
 
-    // Nest across multiple sheets using round-robin
-    const sheets: SheetPlacement[] = [];
-
-    // Initialize all sheets
-    for (let i = 0; i < sheetCount; i++) {
-      sheets.push({
-        sheetIndex: i,
-        placements: [],
-        utilization: 0,
-      });
-    }
-
-    // Track state for each sheet
-    const sheetStates = sheets.map(() => ({
-      currentX: spacing,
-      currentY: spacing,
-      rowHeight: 0,
-    }));
-
-    // Distribute stickers round-robin across sheets
-    let currentSheetIndex = 0;
-
-    for (const sticker of sorted) {
-      let placed = false;
-      let attempts = 0;
-
-      // Try to place on sheets starting from current, cycling through all sheets
-      while (!placed && attempts < sheetCount) {
-        const sheet = sheets[currentSheetIndex];
-        const state = sheetStates[currentSheetIndex];
-
-        // Try to place at current position
-        if (state.currentX + sticker.width + spacing <= sheetWidth) {
-          sheet.placements.push({
-            id: sticker.id,
-            x: state.currentX,
-            y: state.currentY,
-            rotation: 0,
-          });
-          state.currentX += sticker.width + spacing;
-          state.rowHeight = Math.max(state.rowHeight, sticker.height);
-          placed = true;
-        } else {
-          // Try next row
-          state.currentY += state.rowHeight + spacing;
-          state.currentX = spacing;
-          state.rowHeight = 0;
-
-          if (state.currentY + sticker.height + spacing <= sheetHeight) {
-            sheet.placements.push({
-              id: sticker.id,
-              x: state.currentX,
-              y: state.currentY,
-              rotation: 0,
-            });
-            state.currentX += sticker.width + spacing;
-            state.rowHeight = sticker.height;
-            placed = true;
-          }
-        }
-
-        if (!placed) {
-          // This sheet is full, try next sheet
-          currentSheetIndex = (currentSheetIndex + 1) % sheetCount;
-          attempts++;
-        } else {
-          // Successfully placed, move to next sheet for next sticker (round-robin)
-          currentSheetIndex = (currentSheetIndex + 1) % sheetCount;
-        }
-      }
-
-      if (!placed) {
-        console.warn(`Could not place sticker ${sticker.id} on any sheet`);
-      }
-    }
-
-    // Calculate utilization for each sheet
-    sheets.forEach(sheet => {
-      const usedArea = this.calculateUsedArea(sheet.placements, expandedStickers);
-      sheet.utilization = (usedArea / singleSheetArea) * 100;
+    // Step 2: Sort by height descending (Big Rocks First)
+    // This ensures large items are placed first and small items backfill gaps
+    allItems.sort((a, b) => {
+      const heightDiff = b.height - a.height;
+      if (Math.abs(heightDiff) > 0.001) return heightDiff;
+      // If heights are equal, sort by area
+      return (b.width * b.height) - (a.width * a.height);
     });
 
-    // Calculate total utilization
-    const totalUsedArea = sheets.reduce((sum, sheet) => {
-      return sum + this.calculateUsedArea(sheet.placements, expandedStickers);
-    }, 0);
+    console.log('Items sorted by height (descending)');
 
+    // Step 3: Use MaxRects packer with rotation enabled
+    // The packer will automatically create new bins (sheets) as needed
+    const packer = new MaxRectsPacker<PackingItem>(
+      sheetWidth,
+      sheetHeight,
+      spacing,  // padding between items
+      {
+        smart: true,      // Smart sizing
+        pot: false,       // Don't force power of 2
+        square: false,    // Don't force square
+        allowRotation: true, // Allow any rotation for max utilization
+        border: spacing,  // edge spacing
+      }
+    );
+
+    // Add all items to the packer
+    allItems.forEach(item => {
+      packer.add(item);
+    });
+
+    console.log(`Packing complete: ${packer.bins.length} sheets created`);
+
+    // Step 4: Extract placements from bins
+    const sheets: SheetPlacement[] = [];
+    const singleSheetArea = sheetWidth * sheetHeight;
+
+    packer.bins.forEach((bin, index) => {
+      const placements: Placement[] = bin.rects.map((rect) => {
+        const item = rect as PackingItem;
+        return {
+          id: item.instanceId,
+          x: rect.x,
+          y: rect.y,
+          // Convert rotation: maxrects-packer uses boolean 'rot' for 90-degree rotation
+          rotation: rect.rot ? 90 : 0,
+        };
+      });
+
+      // Calculate utilization
+      const usedArea = bin.rects.reduce((sum, rect) => {
+        return sum + (rect.width * rect.height);
+      }, 0);
+      const utilization = (usedArea / singleSheetArea) * 100;
+
+      sheets.push({
+        sheetIndex: index,
+        placements,
+        utilization,
+      });
+
+      console.log(`  Sheet ${index + 1}: ${placements.length} items, ${utilization.toFixed(1)}% utilization`);
+    });
+
+    // Calculate total utilization across all sheets
+    const totalArea = singleSheetArea * sheets.length;
+    const totalUsedArea = sheets.reduce((sum, sheet) => {
+      return sum + sheet.placements.reduce((itemSum, p) => {
+        // Find the original item dimensions
+        const item = allItems.find(i => i.instanceId === p.id);
+        return itemSum + (item ? item.width * item.height : 0);
+      }, 0);
+    }, 0);
     const totalUtilization = (totalUsedArea / totalArea) * 100;
 
     console.log(`Total utilization: ${totalUtilization.toFixed(1)}%`);
-    sheets.forEach(sheet => {
-      console.log(`  Sheet ${sheet.sheetIndex + 1}: ${sheet.placements.length} stickers, ${sheet.utilization.toFixed(1)}%`);
-    });
 
     return {
       sheets,
@@ -195,8 +176,7 @@ export class NestingService {
   }
 
   /**
-   * Nest stickers onto a sheet using a simple greedy algorithm
-   * (Simplified version - full genetic algorithm can be added later)
+   * Nest stickers onto a single sheet using MaxRects algorithm
    */
   nestStickers(
     stickers: Sticker[],
@@ -204,50 +184,60 @@ export class NestingService {
     sheetHeight: number,
     spacing: number = 0.0625
   ): NestingResult {
-    const placements: Placement[] = [];
+    // Use MaxRects for single sheet as well
+    interface PackingItem extends IRectangle {
+      stickerId: string;
+      width: number;
+      height: number;
+      x: number;
+      y: number;
+    }
 
-    // Sort by area (largest first)
+    // Sort by height descending (Big Rocks First)
     const sorted = [...stickers].sort((a, b) => {
-      const areaA = a.width * a.height;
-      const areaB = b.width * b.height;
-      return areaB - areaA;
+      const heightDiff = b.height - a.height;
+      if (Math.abs(heightDiff) > 0.001) return heightDiff;
+      return (b.width * b.height) - (a.width * a.height);
     });
 
-    let currentX = spacing;
-    let currentY = spacing;
-    let rowHeight = 0;
-
-    for (const sticker of sorted) {
-      // Try to place at current position
-      if (currentX + sticker.width + spacing <= sheetWidth) {
-        placements.push({
-          id: sticker.id,
-          x: currentX,
-          y: currentY,
-          rotation: 0
-        });
-
-        currentX += sticker.width + spacing;
-        rowHeight = Math.max(rowHeight, sticker.height);
-      } else {
-        // Move to next row
-        currentY += rowHeight + spacing;
-        currentX = spacing;
-        rowHeight = 0;
-
-        // Check if fits in new row
-        if (currentY + sticker.height + spacing <= sheetHeight) {
-          placements.push({
-            id: sticker.id,
-            x: currentX,
-            y: currentY,
-            rotation: 0
-          });
-
-          currentX += sticker.width + spacing;
-          rowHeight = sticker.height;
-        }
+    // Create packer for single sheet
+    const packer = new MaxRectsPacker<PackingItem>(
+      sheetWidth,
+      sheetHeight,
+      spacing,  // padding between items
+      {
+        smart: true,
+        pot: false,
+        square: false,
+        allowRotation: true,
+        border: spacing,  // edge spacing
       }
+    );
+
+    // Add all items
+    sorted.forEach(sticker => {
+      packer.add({
+        stickerId: sticker.id,
+        width: sticker.width,
+        height: sticker.height,
+        x: 0,
+        y: 0,
+      });
+    });
+
+    // Extract placements from first bin only (single sheet mode)
+    const placements: Placement[] = [];
+    if (packer.bins.length > 0) {
+      const bin = packer.bins[0];
+      placements.push(...bin.rects.map((rect) => {
+        const item = rect as PackingItem;
+        return {
+          id: item.stickerId,
+          x: rect.x,
+          y: rect.y,
+          rotation: rect.rot ? 90 : 0,
+        };
+      }));
     }
 
     // Calculate utilization
