@@ -121,61 +121,43 @@ export class NestingService {
 
     console.log('Items sorted by height (descending)');
 
-    // Step 3: Create exactly pageCount packers (one per sheet)
-    // Pack items into these fixed sheets to maximize utilization
-    // Note: No padding/border in packer config because we inflated item dimensions to include spacing
-    const packers: MaxRectsPacker<PackingItem>[] = [];
-    for (let i = 0; i < pageCount; i++) {
-      packers.push(new MaxRectsPacker<PackingItem>(
-        sheetWidth,
-        sheetHeight,
-        0, // No padding - we handle spacing via inflated dimensions
-        {
-          smart: true,
-          pot: false,
-          square: false,
-          allowRotation: true,
-          border: 0, // No border - items already include spacing buffer
-        }
-      ));
+    // Step 3: Use SINGLE packer to pack all items optimally, then distribute bins to sheets
+    // This ensures collision-free packing since the packer creates new bins when items don't fit
+    const packer = new MaxRectsPacker<PackingItem>(
+      sheetWidth,
+      sheetHeight,
+      0, // No padding - we handle spacing via inflated dimensions
+      {
+        smart: true,
+        pot: false,
+        square: false,
+        allowRotation: true,
+        border: 0, // No border - items already include spacing buffer
+      }
+    );
+
+    // Add all items at once - packer will create bins as needed
+    packer.addArray(allItems);
+
+    console.log(`Packing complete: Packer created ${packer.bins.length} bins for ${allItems.length} items`);
+
+    // If we got more bins than requested sheets, we'll only use the first pageCount bins
+    if (packer.bins.length > pageCount) {
+      const itemsInExtraBins = packer.bins.slice(pageCount).reduce((sum, bin) => sum + bin.rects.length, 0);
+      console.log(`Note: Packer created ${packer.bins.length} bins but only ${pageCount} sheets requested. ${itemsInExtraBins} items will not be included.`);
     }
 
-    // Pack items using greedy fill strategy - fill each sheet completely before moving to next
-    let packedCount = 0;
-
-    for (const item of allItems) {
-      let packed = false;
-
-      // Try to pack in each available sheet until we find one with space
-      for (let i = 0; i < pageCount && !packed; i++) {
-        const packer = packers[i];
-        const beforeCount = packer.bins.length > 0 ? packer.bins[0].rects.length : 0;
-
-        packer.add(item);
-
-        const afterCount = packer.bins.length > 0 ? packer.bins[0].rects.length : 0;
-
-        // Check if item was successfully added
-        if (afterCount > beforeCount) {
-          packed = true;
-          packedCount++;
-          break;
-        }
-      }
-
-      if (!packed) {
-        console.log(`Warning: Could not pack item ${item.instanceId}`);
-      }
-    }
-
-    console.log(`Packing complete: ${packedCount}/${allItems.length} items packed into ${pageCount} sheets`);
-
-    // Step 4: Extract placements from each packer's first bin
+    // Step 4: Extract placements from the packer's bins (up to pageCount sheets)
     const sheets: SheetPlacement[] = [];
     const singleSheetArea = sheetWidth * sheetHeight;
 
-    packers.forEach((packer, index) => {
-      if (packer.bins.length === 0 || packer.bins[0].rects.length === 0) {
+    // Take up to pageCount bins from the packer
+    const binsToUse = Math.min(packer.bins.length, pageCount);
+
+    for (let index = 0; index < binsToUse; index++) {
+      const bin = packer.bins[index];
+
+      if (!bin || bin.rects.length === 0) {
         // Empty sheet
         sheets.push({
           sheetIndex: index,
@@ -183,10 +165,9 @@ export class NestingService {
           utilization: 0,
         });
         console.log(`  Sheet ${index + 1}: 0 items, 0.0% utilization`);
-        return;
+        continue;
       }
 
-      const bin = packer.bins[0];
       const placements: Placement[] = bin.rects.map((rect) => {
         const item = rect as PackingItem;
         return {
@@ -212,7 +193,17 @@ export class NestingService {
       });
 
       console.log(`  Sheet ${index + 1}: ${placements.length} items, ${utilization.toFixed(1)}% utilization`);
-    });
+    }
+
+    // Fill remaining sheets with empty sheets if we got fewer bins than requested
+    for (let index = binsToUse; index < pageCount; index++) {
+      sheets.push({
+        sheetIndex: index,
+        placements: [],
+        utilization: 0,
+      });
+      console.log(`  Sheet ${index + 1}: 0 items, 0.0% utilization (no items fit)`);
+    }
 
     // Calculate total utilization across all sheets using ORIGINAL dimensions
     const totalArea = singleSheetArea * sheets.length;

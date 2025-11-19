@@ -7,6 +7,8 @@
     "verify": "tsx verify-layout.ts"
   },
   "dependencies": {
+    "form-data": "^4.0.5",
+    "node-fetch": "^2.7.0",
     "puppeteer": "^23.0.0"
   },
   "devDependencies": {
