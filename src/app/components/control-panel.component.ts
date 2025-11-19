@@ -95,43 +95,6 @@ import { FormsModule } from '@angular/forms';
       </div>
 
       <div class="section">
-        <h3>Nesting Options</h3>
-
-        <div class="form-group">
-          <label>Rotations:</label>
-          <select [(ngModel)]="config.rotations" (change)="onConfigChange()">
-            <option [value]="1">No Rotation</option>
-            <option [value]="2">0°, 180°</option>
-            <option [value]="4">0°, 90°, 180°, 270°</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label>Population Size:</label>
-          <input
-            type="number"
-            [(ngModel)]="config.populationSize"
-            min="10"
-            max="100"
-            step="10"
-            (change)="onConfigChange()"
-          />
-        </div>
-
-        <div class="form-group">
-          <label>Mutation Rate:</label>
-          <input
-            type="number"
-            [(ngModel)]="config.mutationRate"
-            min="0"
-            max="1"
-            step="0.1"
-            (change)="onConfigChange()"
-          />
-        </div>
-      </div>
-
-      <div class="section">
         <h3>Actions</h3>
 
         <button
@@ -349,10 +312,7 @@ export class ControlPanelComponent {
     sheetWidth: 12,
     sheetHeight: 12,
     margin: 0.125,
-    spacing: 0.0625,
-    rotations: 4,
-    populationSize: 30,
-    mutationRate: 0.3
+    spacing: 0.0625
   };
 
   onConfigChange(): void {
