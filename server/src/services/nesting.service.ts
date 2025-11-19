@@ -511,7 +511,8 @@ export class NestingService {
     sheetHeight: number,
     spacing: number = 0.0625,
     cellsPerInch: number = 100,
-    stepSize: number = 0.05
+    stepSize: number = 0.05,
+    rotations: number[] = [0, 90, 180, 270]
   ): NestingResult {
     console.log(`Polygon packing (single sheet): ${stickers.length} stickers`);
 
@@ -547,7 +548,7 @@ export class NestingService {
     });
 
     // Create packer and pack polygons (all dimensions now in inches)
-    const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize);
+    const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize, rotations);
     const result = packer.pack(polygons);
 
     // Convert polygon placements to standard placements (convert positions back to mm for consistency)
@@ -584,7 +585,8 @@ export class NestingService {
     pageCount: number,
     spacing: number = 0.0625,
     cellsPerInch: number = 100,
-    stepSize: number = 0.05
+    stepSize: number = 0.05,
+    rotations: number[] = [0, 90, 180, 270]
   ): MultiSheetResult {
     console.log(`Polygon multi-sheet packing: ${stickers.length} unique designs across ${pageCount} pages`);
 
@@ -687,7 +689,7 @@ export class NestingService {
       console.log(`\nPacking sheet ${sheetIndex + 1}/${pageCount}...`);
 
       // Create packer for this sheet (dimensions in inches)
-      const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize);
+      const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize, rotations);
       const result = packer.pack(remainingPolygons);
 
       // Convert to placements (convert positions back to mm)
