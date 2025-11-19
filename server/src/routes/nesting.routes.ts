@@ -12,7 +12,7 @@ const nestingService = new NestingService();
 /**
  * Process uploaded images and return traced paths
  */
-router.post('/process', upload.array('images', 20), async (req: Request, res: Response) => {
+router.post('/process', upload.array('images', 100), async (req: Request, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) {

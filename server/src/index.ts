@@ -13,26 +13,6 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Configure multer for file uploads
-const storage = multer.memoryStorage();
-export const upload = multer({
-  storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB max file size
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed!'));
-    }
-  }
-});
-
 // Routes
 app.use('/api/nesting', nestingRouter);
 app.use('/api/pdf', pdfRouter);
@@ -54,7 +34,26 @@ app.get('*', (req: Request, res: Response) => {
 });
 
 // Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: any) => {
+app.use((err: any, req: Request, res: Response, next: any) => {
+  console.error('Error occurred:', err);
+
+  // Handle Multer errors specifically
+  if (err instanceof multer.MulterError) {
+    console.error('Multer Error Details:');
+    console.error('- Error code:', err.code);
+    console.error('- Field name:', err.field);
+    console.error('- Request path:', req.path);
+    console.error('- Request method:', req.method);
+    console.error('- Content-Type:', req.headers['content-type']);
+
+    return res.status(400).json({
+      error: 'File upload error',
+      message: err.message,
+      code: err.code,
+      field: err.field
+    });
+  }
+
   console.error(err.stack);
   res.status(500).json({
     error: 'Internal Server Error',

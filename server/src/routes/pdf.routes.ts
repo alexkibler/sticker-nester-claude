@@ -9,7 +9,7 @@ const pdfService = new PdfService();
 /**
  * Generate PDF from placements
  */
-router.post('/generate', upload.array('images', 20), async (req: Request, res: Response) => {
+router.post('/generate', upload.array('images', 100), async (req: Request, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
     const { placements, sheets, sheetWidth, sheetHeight, stickers, productionMode } = req.body;
