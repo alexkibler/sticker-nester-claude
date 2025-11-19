@@ -14,11 +14,19 @@ router.post('/generate', upload.array('images', 20), async (req: Request, res: R
     const files = req.files as Express.Multer.File[];
     const { placements, sheets, sheetWidth, sheetHeight, stickers, productionMode } = req.body;
 
-    if (!files || !sheetWidth || !sheetHeight) {
+    const isProductionMode = productionMode === 'true';
+
+    if (!files || !sheetWidth || !sheetHeight || !stickers) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    const isProductionMode = productionMode === 'true';
+    if (isProductionMode && !sheets) {
+      return res.status(400).json({ error: 'Missing required "sheets" parameter for production mode' });
+    }
+
+    if (!isProductionMode && !placements) {
+      return res.status(400).json({ error: 'Missing required "placements" parameter' });
+    }
 
     // Parse JSON data
     const parsedStickers = JSON.parse(stickers);
@@ -41,7 +49,7 @@ router.post('/generate', upload.array('images', 20), async (req: Request, res: R
 
     let pdfBuffer: Buffer;
 
-    if (isProductionMode && sheets) {
+    if (isProductionMode) {
       // Multi-sheet PDF generation
       const parsedSheets = JSON.parse(sheets);
       console.log('Generating multi-sheet PDF with sheets:', JSON.stringify(parsedSheets, null, 2));

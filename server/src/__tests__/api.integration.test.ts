@@ -194,9 +194,24 @@ describe('API Integration Tests', () => {
         },
       ]);
 
+      const stickers = JSON.stringify([
+        {
+          id: 'test.png',
+          path: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 0, y: 1 },
+          ],
+          width: 1,
+          height: 1,
+        },
+      ]);
+
       const response = await request(app)
         .post('/api/pdf/generate')
         .field('placements', placements)
+        .field('stickers', stickers)
         .field('sheetWidth', '12')
         .field('sheetHeight', '12')
         .attach('images', testImage, 'test.png')
@@ -211,21 +226,11 @@ describe('API Integration Tests', () => {
     });
 
     it('should return 400 if no images provided', async () => {
-      const placements = JSON.stringify([
-        {
-          id: 'test.png',
-          x: 1,
-          y: 1,
-          rotation: 0,
-        },
-      ]);
-
-      await request(app)
-        .post('/api/pdf/generate')
-        .field('placements', placements)
-        .field('sheetWidth', '12')
-        .field('sheetHeight', '12')
-        .expect(400);
+            await request(app)
+              .post('/api/pdf/generate')
+              .field('sheetWidth', '12')
+              .field('sheetHeight', '12')
+              .expect(400);
     });
 
     it('should return 400 if placements are missing', async () => {
@@ -240,8 +245,23 @@ describe('API Integration Tests', () => {
         .png()
         .toBuffer();
 
+      const stickers = JSON.stringify([
+        {
+          id: 'test.png',
+          path: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 0, y: 1 },
+          ],
+          width: 1,
+          height: 1,
+        },
+      ]);
+
       await request(app)
         .post('/api/pdf/generate')
+        .field('stickers', stickers)
         .field('sheetWidth', '12')
         .field('sheetHeight', '12')
         .attach('images', testImage, 'test.png')
