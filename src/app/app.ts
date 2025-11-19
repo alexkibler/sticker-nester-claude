@@ -6,6 +6,7 @@ import { Subscription } from 'rxjs';
 import { UploadDropzoneComponent } from './components/upload-dropzone.component';
 import { CanvasPreviewComponent } from './components/canvas-preview.component';
 import { ControlPanelComponent } from './components/control-panel.component';
+import { ProgressBarComponent } from './components/progress-bar.component';
 
 // Services
 import {
@@ -38,7 +39,8 @@ import { SheetPlacement } from './services/api.service';
     CommonModule,
     UploadDropzoneComponent,
     CanvasPreviewComponent,
-    ControlPanelComponent
+    ControlPanelComponent,
+    ProgressBarComponent
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss'
@@ -55,6 +57,14 @@ export class App implements OnInit, OnDestroy {
   currentFitness = 0;
   utilization = 0;
   quantities: { [stickerId: string]: number } = {};
+
+  // Progress tracking
+  uploadProgress = 0;
+  showUploadProgress = false;
+  pdfProgress = 0;
+  pdfCurrentPage = 0;
+  pdfTotalPages = 0;
+  showPdfProgress = false;
 
   // Configuration
   config = {
@@ -89,10 +99,14 @@ export class App implements OnInit, OnDestroy {
    */
   async onFilesSelected(files: File[]): Promise<void> {
     this.isProcessing = true;
+    this.showUploadProgress = true;
+    this.uploadProgress = 0;
 
     try {
-      // Process all files via backend API
-      const processedImages = await this.apiService.processImages(files);
+      // Process all files via backend API with progress tracking
+      const processedImages = await this.apiService.processImages(files, (progress) => {
+        this.uploadProgress = progress;
+      });
 
       // Create sticker objects with processed data
       for (let i = 0; i < processedImages.length; i++) {
@@ -119,11 +133,13 @@ export class App implements OnInit, OnDestroy {
       }
 
       // Automatically run nesting after upload
+      this.showUploadProgress = false;
       this.isProcessing = false;
       await this.onStartNesting();
     } catch (error) {
       console.error('Error processing files:', error);
       alert('Error processing files. Please try again.');
+      this.showUploadProgress = false;
       this.isProcessing = false;
     }
   }
@@ -226,6 +242,12 @@ export class App implements OnInit, OnDestroy {
     }
 
     try {
+      // Show progress bar for PDF generation
+      this.showPdfProgress = true;
+      this.pdfProgress = 0;
+      this.pdfCurrentPage = 0;
+      this.pdfTotalPages = this.config.productionMode ? this.sheets.length : 1;
+
       // Create map of files for backend
       const fileMap = new Map<string, File>();
       this.stickers.forEach(sticker => {
@@ -240,14 +262,19 @@ export class App implements OnInit, OnDestroy {
         height: s.inputDimensions.height
       }));
 
-      // Call backend API to generate PDF
+      // Call backend API to generate PDF with progress tracking
       const blob = await this.apiService.generatePdf(
         fileMap,
         this.config.productionMode && this.sheets.length > 0 ? this.sheets : this.placements,
         stickerData,
         this.config.sheetWidth,
         this.config.sheetHeight,
-        this.config.productionMode
+        this.config.productionMode,
+        (progress, current, total) => {
+          this.pdfProgress = progress;
+          this.pdfCurrentPage = current;
+          this.pdfTotalPages = total;
+        }
       );
 
       // Download the PDF
@@ -258,9 +285,15 @@ export class App implements OnInit, OnDestroy {
       link.download = filename;
       link.click();
       window.URL.revokeObjectURL(url);
+
+      // Hide progress bar after a short delay
+      setTimeout(() => {
+        this.showPdfProgress = false;
+      }, 1000);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Error generating PDF. Please try again.');
+      this.showPdfProgress = false;
     }
   }
 

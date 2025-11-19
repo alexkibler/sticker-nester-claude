@@ -24,6 +24,13 @@
         <app-upload-dropzone
           (filesSelected)="onFilesSelected($event)"
         ></app-upload-dropzone>
+
+        <!-- Upload Progress -->
+        <app-progress-bar
+          [label]="'Uploading and Processing Images'"
+          [progress]="uploadProgress"
+          [visible]="showUploadProgress"
+        ></app-progress-bar>
       </div>
 
       <div class="stickers-list" *ngIf="stickers.length > 0">
@@ -85,6 +92,22 @@
             Nesting in progress...
           </div>
         </div>
+
+        <!-- Upload Progress (for additional uploads) -->
+        <app-progress-bar
+          [label]="'Uploading and Processing Images'"
+          [progress]="uploadProgress"
+          [visible]="showUploadProgress"
+        ></app-progress-bar>
+
+        <!-- PDF Generation Progress -->
+        <app-progress-bar
+          [label]="'Generating PDF'"
+          [progress]="pdfProgress"
+          [visible]="showPdfProgress"
+          [current]="pdfCurrentPage"
+          [total]="pdfTotalPages"
+        ></app-progress-bar>
 
         <app-canvas-preview
           [stickers]="stickers"

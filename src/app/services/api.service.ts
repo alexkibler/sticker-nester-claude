@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { HttpClient, HttpEventType } from '@angular/common/http';
+import { firstValueFrom, Observable } from 'rxjs';
 import { Point } from '../models/geometry.types';
 import { Placement } from '../models/nesting.interface';
 
@@ -60,21 +60,38 @@ export class ApiService {
   /**
    * Process uploaded images and extract vector paths
    */
-  async processImages(files: File[]): Promise<ProcessedImage[]> {
+  async processImages(
+    files: File[],
+    onProgress?: (progress: number) => void
+  ): Promise<ProcessedImage[]> {
     const formData = new FormData();
 
     files.forEach(file => {
       formData.append('images', file);
     });
 
-    const response = await firstValueFrom(
+    return new Promise((resolve, reject) => {
       this.http.post<{ images: ProcessedImage[] }>(
         `${this.baseUrl}/nesting/process`,
-        formData
-      )
-    );
-
-    return response.images;
+        formData,
+        {
+          reportProgress: true,
+          observe: 'events'
+        }
+      ).subscribe({
+        next: (event) => {
+          if (event.type === HttpEventType.UploadProgress) {
+            if (event.total) {
+              const progress = Math.round((event.loaded / event.total) * 100);
+              onProgress?.(progress);
+            }
+          } else if (event.type === HttpEventType.Response) {
+            resolve(event.body!.images);
+          }
+        },
+        error: (error) => reject(error)
+      });
+    });
   }
 
   /**
@@ -98,7 +115,8 @@ export class ApiService {
     stickers: any[],
     sheetWidth: number,
     sheetHeight: number,
-    productionMode: boolean = false
+    productionMode: boolean = false,
+    onProgress?: (progress: number, current: number, total: number) => void
   ): Promise<Blob> {
     const formData = new FormData();
 
@@ -119,6 +137,11 @@ export class ApiService {
     formData.append('sheetHeight', sheetHeight.toString());
     formData.append('productionMode', productionMode.toString());
 
+    // If progress callback provided and in production mode, use SSE for progress
+    if (onProgress && productionMode && Array.isArray(placementsOrSheets)) {
+      return this.generatePdfWithProgress(formData, placementsOrSheets.length, onProgress);
+    }
+
     const response = await firstValueFrom(
       this.http.post(
         `${this.baseUrl}/pdf/generate`,
@@ -130,5 +153,71 @@ export class ApiService {
     );
 
     return response;
+  }
+
+  /**
+   * Generate PDF with progress tracking via SSE
+   */
+  private async generatePdfWithProgress(
+    formData: FormData,
+    totalPages: number,
+    onProgress: (progress: number, current: number, total: number) => void
+  ): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      // First, initiate the PDF generation
+      this.http.post(
+        `${this.baseUrl}/pdf/generate`,
+        formData,
+        {
+          responseType: 'blob',
+          reportProgress: true,
+          observe: 'events'
+        }
+      ).subscribe({
+        next: (event) => {
+          if (event.type === HttpEventType.DownloadProgress) {
+            // Estimate progress based on download progress
+            // This is a fallback if SSE isn't working
+            if (event.total) {
+              const progress = Math.round((event.loaded / event.total) * 100);
+              const currentPage = Math.floor((progress / 100) * totalPages);
+              onProgress(progress, currentPage, totalPages);
+            }
+          } else if (event.type === HttpEventType.Response) {
+            onProgress(100, totalPages, totalPages);
+            resolve(event.body!);
+          }
+        },
+        error: (error) => reject(error)
+      });
+    });
+  }
+
+  /**
+   * Listen to PDF generation progress via SSE
+   */
+  listenToPdfProgress(jobId: string): Observable<{ current: number; total: number; progress: number }> {
+    return new Observable(observer => {
+      const eventSource = new EventSource(`${this.baseUrl}/pdf/progress/${jobId}`);
+
+      eventSource.addEventListener('progress', (event: any) => {
+        const data = JSON.parse(event.data);
+        observer.next(data);
+      });
+
+      eventSource.addEventListener('complete', () => {
+        eventSource.close();
+        observer.complete();
+      });
+
+      eventSource.addEventListener('error', (error) => {
+        eventSource.close();
+        observer.error(error);
+      });
+
+      return () => {
+        eventSource.close();
+      };
+    });
   }
 }
