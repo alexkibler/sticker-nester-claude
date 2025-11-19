@@ -201,32 +201,4 @@ export class ApiService {
       });
     });
   }
-
-  /**
-   * Listen to PDF generation progress via SSE
-   */
-  listenToPdfProgress(jobId: string): Observable<{ current: number; total: number; progress: number }> {
-    return new Observable(observer => {
-      const eventSource = new EventSource(`${this.baseUrl}/pdf/progress/${jobId}`);
-
-      eventSource.addEventListener('progress', (event: any) => {
-        const data = JSON.parse(event.data);
-        observer.next(data);
-      });
-
-      eventSource.addEventListener('complete', () => {
-        eventSource.close();
-        observer.complete();
-      });
-
-      eventSource.addEventListener('error', (error) => {
-        eventSource.close();
-        observer.error(error);
-      });
-
-      return () => {
-        eventSource.close();
-      };
-    });
-  }
 }
