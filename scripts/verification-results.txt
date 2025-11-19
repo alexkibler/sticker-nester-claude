@@ -1,0 +1,87 @@
+
+> mosaic-verification-scripts@1.0.0 verify
+> tsx verify-layout.ts
+
+🚀 Starting Mosaic Layout Verification
+
+Configuration:
+  - App URL: http://localhost:4201
+  - Test Images: /Volumes/1TB/Repos/sticker-nester-claude-1/test-images
+  - Sheet Count: 5
+  - Epsilon Tolerance: 0.001 inches
+
+Found 10 test images
+
+🌐 Navigating to application...
+✅ Application loaded
+
+📤 Uploading 10 test images...
+✅ Files uploaded, waiting for processing...
+✅ Image processing complete
+
+⚙️  Configuring production mode with 5 sheets...
+✅ Production mode configured
+
+🎯 Starting nesting algorithm...
+⏳ Waiting for nesting to complete...
+✅ Nesting complete
+
+📊 Extracting placement data from Angular app...
+Debug info: {
+  hasAppRoot: true,
+  hasNg: true,
+  hasNgGetComponent: true,
+  hasNgProbe: false,
+  hasContext: false,
+  contextType: 'number',
+  contextIsArray: false
+}
+Component extraction result:
+  Method: ng.getComponent
+  Has sheets: true
+  Sheets type: object
+  Is array: true
+  Sheets: 5, Stickers: 10
+✅ Extracted 5 sheets and 10 stickers
+
+📸 Taking screenshots...
+✅ Screenshot saved as layout-debug-full.png
+
+🔍 Analyzing placements for overlaps...
+
+✅ Sheet 0: No overlaps detected
+✅ Sheet 1: No overlaps detected
+✅ Sheet 2: No overlaps detected
+❌ Sheet 3: Found 1 overlap(s)
+
+  Overlap Details:
+    Placement 1: PetalerLogo FinalwithStroke.png_8
+      Position: (6.188", 6.188")
+      Size: 2.674" × 3.000"
+      Rotation: 0°
+    Placement 2: PetalerLogo FinalwithStroke.png_9
+      Position: (6.188", 8.924")
+      Size: 2.674" × 3.000"
+      Rotation: 0°
+    Overlap Area:
+      X: 6.188" to 8.861"
+      Y: 8.924" to 9.188"
+      Width: 2.674"
+      Height: 0.264"
+✅ Sheet 4: No overlaps detected
+
+============================================================
+
+📋 VERIFICATION SUMMARY
+  Total Sheets: 5
+  Total Placements: 75
+  Total Overlaps: 1
+  Epsilon Tolerance: 0.001 inches
+
+❌ MATH CHECK FAILED: 1 overlap(s) detected!
+📸 Visual evidence: Check layout-debug-full.png
+
+🔧 This indicates a BUG in the packing algorithm
+
+============================================================
+
