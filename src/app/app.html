@@ -1,0 +1,107 @@
+<div class="app-container">
+  <header class="header">
+    <h1>{{ title() }}</h1>
+    <p class="subtitle">Client-Side Sticker Layout and Nesting Engine</p>
+  </header>
+
+  <main class="main-content">
+    <div class="sidebar">
+      <app-control-panel
+        [canStartNesting]="canStartNesting"
+        [canExport]="canExport"
+        [canReset]="canReset"
+        [isNesting]="isNesting"
+        [status]="nestingStatus"
+        (configChanged)="onConfigChanged($event)"
+        (startNesting)="onStartNesting()"
+        (exportPdf)="onExportPdf()"
+        (reset)="onReset()"
+      ></app-control-panel>
+    </div>
+
+    <div class="content">
+      <div class="upload-section" *ngIf="stickers.length === 0">
+        <app-upload-dropzone
+          (filesSelected)="onFilesSelected($event)"
+        ></app-upload-dropzone>
+      </div>
+
+      <div class="stickers-list" *ngIf="stickers.length > 0">
+        <div class="section-header">
+          <h2>Uploaded Stickers ({{ stickers.length }})</h2>
+          <button class="btn-small" (click)="fileInput.click()">
+            + Add More
+          </button>
+          <input
+            #fileInput
+            type="file"
+            accept="image/*"
+            multiple
+            style="display: none"
+            (change)="onFileInputChange($event)"
+          />
+        </div>
+
+        <div class="stickers-grid">
+          <div class="sticker-card" *ngFor="let sticker of stickers; let i = index">
+            <div class="sticker-info">
+              <div class="sticker-name">{{ sticker.file.name }}</div>
+              <div class="sticker-size-inputs">
+                <div class="size-input-group">
+                  <label>Width (in):</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    [value]="sticker.inputDimensions.width.toFixed(2)"
+                    (input)="onStickerDimensionChange(i, 'width', $event)"
+                    class="dimension-input"
+                  />
+                </div>
+                <div class="size-input-group">
+                  <label>Height (in):</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    [value]="sticker.inputDimensions.height.toFixed(2)"
+                    (input)="onStickerDimensionChange(i, 'height', $event)"
+                    class="dimension-input"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview-section" *ngIf="stickers.length > 0">
+        <div class="section-header">
+          <h2>Layout Preview</h2>
+          <div class="status-badge" *ngIf="isProcessing">
+            Processing images...
+          </div>
+          <div class="status-badge success" *ngIf="isNesting">
+            Nesting in progress...
+          </div>
+        </div>
+
+        <app-canvas-preview
+          [stickers]="stickers"
+          [placements]="placements"
+          [sheets]="sheets"
+          [sheetWidth]="config.sheetWidth"
+          [sheetHeight]="config.sheetHeight"
+          [utilization]="utilization"
+          [productionMode]="config.productionMode"
+        ></app-canvas-preview>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>
+      Built with Angular • Open Source
+    </p>
+  </footer>
+</div>
