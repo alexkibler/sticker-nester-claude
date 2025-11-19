@@ -39,32 +39,33 @@ router.post('/generate', upload.array('images', 20), async (req: Request, res: R
       }
     });
 
-    let pdfBuffer: Buffer;
+    // Set response headers for PDF streaming
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=sticker-layout.pdf');
 
+    // Stream PDF directly to response (memory-efficient, prevents OOM on large PDFs)
     if (isProductionMode && sheets) {
-      // Multi-sheet PDF generation
+      // Multi-sheet PDF generation (optimized for 50+ pages)
       const parsedSheets = JSON.parse(sheets);
-      console.log('Generating multi-sheet PDF with sheets:', JSON.stringify(parsedSheets, null, 2));
-      pdfBuffer = await pdfService.generateMultiSheetPdf(
+      console.log(`Generating multi-sheet PDF: ${parsedSheets.length} pages (streaming mode)`);
+      await pdfService.generateMultiSheetPdf(
         stickerMap,
         parsedSheets,
         parseFloat(sheetWidth),
-        parseFloat(sheetHeight)
+        parseFloat(sheetHeight),
+        res
       );
     } else {
       // Single sheet PDF generation
       const parsedPlacements = JSON.parse(placements);
-      pdfBuffer = await pdfService.generatePdf(
+      await pdfService.generatePdf(
         stickerMap,
         parsedPlacements,
         parseFloat(sheetWidth),
-        parseFloat(sheetHeight)
+        parseFloat(sheetHeight),
+        res
       );
     }
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=sticker-layout.pdf');
-    res.send(pdfBuffer);
   } catch (error: any) {
     console.error('Error generating PDF:', error);
     res.status(500).json({ error: error.message });

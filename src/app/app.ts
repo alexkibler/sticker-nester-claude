@@ -73,10 +73,7 @@ export class App implements OnInit, OnDestroy {
     sheetWidth: 12,
     sheetHeight: 12,
     margin: 0.125,
-    spacing: 0.0625,
-    rotations: 4,
-    populationSize: 30,
-    mutationRate: 0.3
+    spacing: 0.0625
   };
 
   private subscriptions = new Subscription();
