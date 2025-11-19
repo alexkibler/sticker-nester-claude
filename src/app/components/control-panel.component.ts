@@ -67,6 +67,22 @@ import {
           </label>
         </div>
 
+        <!-- Polygon Packing Mode -->
+        <div class="form-group">
+          <label>
+            <input
+              type="checkbox"
+              [(ngModel)]="config.usePolygonPacking"
+              (change)="onConfigChange()"
+              class="checkbox-input"
+            />
+            Use Polygon Packing
+          </label>
+          <small class="help-text">
+            Uses actual sticker shapes for better packing (slower but more accurate for irregular shapes)
+          </small>
+        </div>
+
         <!-- Number of Sheets -->
         <div class="form-group" *ngIf="config.productionMode">
           <label>Number of Sheets:</label>
@@ -487,7 +503,10 @@ export class ControlPanelComponent implements OnInit {
     marginMM: 3.175,         // 0.125" in mm
     spacingMM: 1.5875,       // 0.0625" in mm
     maxDimensionMM: 76.2,    // 3" in mm - max dimension for ALL stickers
-    unit: 'inches' as 'inches' | 'mm'  // User's preferred unit
+    unit: 'inches' as 'inches' | 'mm',  // User's preferred unit
+    usePolygonPacking: false,  // Use polygon-based packing instead of rectangle packing
+    cellsPerInch: 100,         // Grid resolution for polygon packing
+    stepSize: 0.05             // Position search step size for polygon packing (inches)
   };
 
   // Sheet size state
@@ -686,7 +705,10 @@ export class ControlPanelComponent implements OnInit {
       marginMM: this.config.marginMM,
       spacingMM: this.config.spacingMM,
       maxDimensionMM: this.config.maxDimensionMM,
-      unit: this.config.unit
+      unit: this.config.unit,
+      usePolygonPacking: this.config.usePolygonPacking,
+      cellsPerInch: this.config.cellsPerInch,
+      stepSize: this.config.stepSize
     });
   }
 }

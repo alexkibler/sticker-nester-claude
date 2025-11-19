@@ -76,7 +76,10 @@ export class App implements OnInit, OnDestroy {
     marginMM: 3.175,         // 0.125" in mm
     spacingMM: 1.5875,       // 0.0625" in mm
     maxDimensionMM: 76.2,    // 3" in mm - max dimension for ALL stickers
-    unit: 'inches' as 'inches' | 'mm'  // User's preferred unit
+    unit: 'inches' as 'inches' | 'mm',  // User's preferred unit
+    usePolygonPacking: false,  // Use polygon-based packing instead of rectangle packing
+    cellsPerInch: 100,         // Grid resolution for polygon packing
+    stepSize: 0.05             // Position search step size for polygon packing (inches)
   };
 
   private subscriptions = new Subscription();
@@ -191,7 +194,10 @@ export class App implements OnInit, OnDestroy {
         sheetHeight: this.config.sheetHeightMM,
         spacing: this.config.spacingMM,
         productionMode: this.config.productionMode,
-        sheetCount: this.config.sheetCount
+        sheetCount: this.config.sheetCount,
+        usePolygonPacking: this.config.usePolygonPacking,
+        cellsPerInch: this.config.cellsPerInch,
+        stepSize: this.config.stepSize
       };
 
       // Add quantities for production mode
