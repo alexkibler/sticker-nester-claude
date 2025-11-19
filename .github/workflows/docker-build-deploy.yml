@@ -45,7 +45,7 @@ jobs:
             # Tag as 'dev' for all claude/* branches
             type=raw,value=dev,enable=${{ startsWith(github.ref, 'refs/heads/claude/') }}
             # Also tag with commit SHA for traceability
-            type=sha,prefix={{branch}}-
+            type=sha
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
