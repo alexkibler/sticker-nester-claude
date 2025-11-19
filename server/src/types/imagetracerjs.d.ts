@@ -1,9 +1,12 @@
+/**
+ * Type definitions for imagetracerjs
+ * Library for tracing bitmap images to vector paths
+ */
 declare module 'imagetracerjs' {
-  export interface ImageTracerOptions {
+  export interface TracingOptions {
     ltres?: number;
     qtres?: number;
     pathomit?: number;
-    rightangleenhance?: boolean;
     colorsampling?: number;
     numberofcolors?: number;
     mincolorratio?: number;
@@ -11,6 +14,7 @@ declare module 'imagetracerjs' {
     layering?: number;
     strokewidth?: number;
     linefilter?: boolean;
+    rightangleenhance?: boolean;
     scale?: number;
     roundcoords?: number;
     viewbox?: boolean;
@@ -21,14 +25,40 @@ declare module 'imagetracerjs' {
     blurdelta?: number;
   }
 
-  export interface TraceResult {
-    layers: any[][];
+  export interface Point {
+    x: number;
+    y: number;
   }
 
-  const ImageTracer: {
-    imagedataToTracedata(imageData: any, options?: ImageTracerOptions): TraceResult;
-    imagedataToSVG(imageData: any, options?: ImageTracerOptions): string;
-  };
+  export interface TracedLayer {
+    segments: Array<{
+      type: string;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+    }>;
+  }
 
-  export default ImageTracer;
+  export interface TracedImage {
+    layers: TracedLayer[];
+    palette: string[][];
+    width: number;
+    height: number;
+  }
+
+  function imagedataToTracedata(
+    imageData: ImageData | any,
+    options?: TracingOptions
+  ): TracedImage;
+
+  function imagedataToSVG(
+    imageData: ImageData | any,
+    options?: TracingOptions
+  ): string;
+
+  export default {
+    imagedataToTracedata,
+    imagedataToSVG,
+  };
 }
