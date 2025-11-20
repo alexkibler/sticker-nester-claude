@@ -9,6 +9,12 @@ import {
   PackablePolygon,
   estimateSpaceRequirements
 } from '../services/polygon-packing.service';
+import {
+  BottomLeftPacker,
+  MultiSheetPolygonPacker,
+  PackablePolygon as PackablePolygonV2,
+  PackingConfig
+} from '../services/polygon-packing-v2.service';
 
 export interface PackingWorkerData {
   type: 'single-sheet' | 'multi-sheet';
@@ -26,6 +32,7 @@ export interface PackingWorkerData {
   rotations: number[];
   pageCount?: number; // For multi-sheet
   packAllItems?: boolean; // For multi-sheet
+  useV2Algorithm?: boolean; // Use new Bottom-Left algorithm (default: false for backward compatibility)
 }
 
 export interface PackingWorkerProgress {
@@ -88,11 +95,11 @@ function sendMessage(message: PackingWorkerMessage) {
 }
 
 async function performSingleSheetPacking(data: PackingWorkerData) {
-  const { stickers, sheetWidth, sheetHeight, spacing, cellsPerInch, stepSize, rotations } = data;
+  const { stickers, sheetWidth, sheetHeight, spacing, cellsPerInch, stepSize, rotations, useV2Algorithm } = data;
 
   sendMessage({
     type: 'progress',
-    message: 'Starting polygon packing...',
+    message: `Starting polygon packing (${useV2Algorithm ? 'V2' : 'V1'})...`,
     percentComplete: 0
   });
 
@@ -128,43 +135,84 @@ async function performSingleSheetPacking(data: PackingWorkerData) {
     percentComplete: 25
   });
 
-  // Create packer with real-time progress callback
-  const packer = new PolygonPacker(
-    sheetWidthInches,
-    sheetHeightInches,
-    spacingInches,
-    cellsPerInch,
-    stepSize,
-    rotations,
-    (progress) => {
-      // Send real-time placement updates
-      if (progress.status === 'trying') {
-        sendMessage({
-          type: 'progress',
-          message: `Trying to place ${progress.itemId}...`,
-          itemsPlaced: progress.current,
-          totalItems: progress.total,
-          percentComplete: 25 + Math.floor((progress.current / progress.total) * 50)
-        });
-      } else if (progress.status === 'placed' && progress.placement) {
-        sendMessage({
-          type: 'progress',
-          message: `Placed ${progress.itemId}`,
-          itemsPlaced: progress.current,
-          totalItems: progress.total,
-          percentComplete: 25 + Math.floor((progress.current / progress.total) * 50),
-          placement: {
-            sheetIndex: 0,
-            id: progress.placement.id,
-            x: progress.placement.x * MM_PER_INCH,
-            y: progress.placement.y * MM_PER_INCH,
-            rotation: progress.placement.rotation
-          }
-        });
+  let result: any;
+
+  if (useV2Algorithm) {
+    // Use new V2 algorithm (Bottom-Left, no rasterization)
+    const config: PackingConfig = {
+      sheetWidth: sheetWidthInches,
+      sheetHeight: sheetHeightInches,
+      spacing: spacingInches,
+      rotations,
+      progressCallback: (progress) => {
+        if (progress.status === 'trying') {
+          sendMessage({
+            type: 'progress',
+            message: `Trying to place ${progress.itemId}...`,
+            itemsPlaced: progress.current,
+            totalItems: progress.total,
+            percentComplete: 25 + Math.floor((progress.current / progress.total) * 50)
+          });
+        } else if (progress.status === 'placed' && progress.placement) {
+          sendMessage({
+            type: 'progress',
+            message: `Placed ${progress.itemId}`,
+            itemsPlaced: progress.current,
+            totalItems: progress.total,
+            percentComplete: 25 + Math.floor((progress.current / progress.total) * 50),
+            placement: {
+              sheetIndex: 0,
+              id: progress.placement.id,
+              x: progress.placement.x * MM_PER_INCH,
+              y: progress.placement.y * MM_PER_INCH,
+              rotation: progress.placement.rotation
+            }
+          });
+        }
       }
-    }
-  );
-  const result = await packer.pack(polygons);
+    };
+
+    const packer = new BottomLeftPacker(config);
+    result = await packer.pack(polygons);
+  } else {
+    // Use old V1 algorithm (grid rasterization)
+    const packer = new PolygonPacker(
+      sheetWidthInches,
+      sheetHeightInches,
+      spacingInches,
+      cellsPerInch,
+      stepSize,
+      rotations,
+      (progress) => {
+        // Send real-time placement updates
+        if (progress.status === 'trying') {
+          sendMessage({
+            type: 'progress',
+            message: `Trying to place ${progress.itemId}...`,
+            itemsPlaced: progress.current,
+            totalItems: progress.total,
+            percentComplete: 25 + Math.floor((progress.current / progress.total) * 50)
+          });
+        } else if (progress.status === 'placed' && progress.placement) {
+          sendMessage({
+            type: 'progress',
+            message: `Placed ${progress.itemId}`,
+            itemsPlaced: progress.current,
+            totalItems: progress.total,
+            percentComplete: 25 + Math.floor((progress.current / progress.total) * 50),
+            placement: {
+              sheetIndex: 0,
+              id: progress.placement.id,
+              x: progress.placement.x * MM_PER_INCH,
+              y: progress.placement.y * MM_PER_INCH,
+              rotation: progress.placement.rotation
+            }
+          });
+        }
+      }
+    );
+    result = await packer.pack(polygons);
+  }
 
   sendMessage({
     type: 'progress',
@@ -173,7 +221,7 @@ async function performSingleSheetPacking(data: PackingWorkerData) {
   });
 
   // Convert placements back to mm
-  const placements = result.placements.map(p => ({
+  const placements = result.placements.map((p: any) => ({
     id: p.id,
     x: p.x * MM_PER_INCH,
     y: p.y * MM_PER_INCH,
@@ -181,7 +229,7 @@ async function performSingleSheetPacking(data: PackingWorkerData) {
   }));
 
   // Calculate fitness
-  const fitness = result.placements.reduce((sum, p) => {
+  const fitness = result.placements.reduce((sum: number, p: any) => {
     const sticker = stickers.find(s => s.id === p.id);
     return sum + (sticker ? sticker.width * sticker.height : 0);
   }, 0);
@@ -212,13 +260,14 @@ async function performMultiSheetPacking(data: PackingWorkerData) {
     cellsPerInch,
     stepSize,
     rotations,
-    packAllItems = true
+    packAllItems = true,
+    useV2Algorithm
   } = data;
 
   const mode = packAllItems ? 'PACK ALL ITEMS (auto-expand)' : 'FIXED PAGES';
   sendMessage({
     type: 'progress',
-    message: `Starting multi-sheet polygon packing: ${mode}`,
+    message: `Starting multi-sheet polygon packing (${useV2Algorithm ? 'V2' : 'V1'}): ${mode}`,
     totalItems: stickers.length,
     itemsPlaced: 0,
     percentComplete: 0
@@ -250,6 +299,75 @@ async function performMultiSheetPacking(data: PackingWorkerData) {
     };
   });
 
+  // Use V2 algorithm (new Bottom-Left multi-sheet)
+  if (useV2Algorithm) {
+    sendMessage({
+      type: 'progress',
+      message: 'Using new V2 multi-sheet algorithm...',
+      percentComplete: 5
+    });
+
+    const config: PackingConfig = {
+      sheetWidth: sheetWidthInches,
+      sheetHeight: sheetHeightInches,
+      spacing: spacingInches,
+      rotations,
+      progressCallback: (progress) => {
+        if (progress.status === 'placed' && progress.placement) {
+          sendMessage({
+            type: 'progress',
+            message: progress.message,
+            percentComplete: 10 + Math.floor(Math.random() * 70), // Rough progress
+            placement: {
+              sheetIndex: 0, // Will be determined by multi-sheet packer
+              id: progress.placement.id,
+              x: progress.placement.x * MM_PER_INCH,
+              y: progress.placement.y * MM_PER_INCH,
+              rotation: progress.placement.rotation
+            }
+          });
+        }
+      }
+    };
+
+    const result = await MultiSheetPolygonPacker.packMultiSheet(
+      polygons,
+      pageCount,
+      config,
+      packAllItems
+    );
+
+    // Convert back to mm
+    const sheetsInMM = result.sheets.map(sheet => ({
+      ...sheet,
+      placements: sheet.placements.map(p => ({
+        id: p.id,
+        x: p.x * MM_PER_INCH,
+        y: p.y * MM_PER_INCH,
+        rotation: p.rotation
+      }))
+    }));
+
+    sendMessage({
+      type: 'progress',
+      message: 'Complete!',
+      percentComplete: 100
+    });
+
+    sendMessage({
+      type: 'result',
+      result: {
+        sheets: sheetsInMM,
+        totalUtilization: result.totalUtilization,
+        quantities: result.quantities,
+        message: result.message
+      }
+    });
+
+    return; // Exit early - V2 algorithm complete
+  }
+
+  // V1 algorithm (grid rasterization) - original logic below
   // Estimate space requirements
   const estimate = estimateSpaceRequirements(
     polygons,
