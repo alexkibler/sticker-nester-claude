@@ -1,8 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpEventType } from '@angular/common/http';
-import { firstValueFrom, Observable } from 'rxjs';
+import { firstValueFrom, Observable, Subject } from 'rxjs';
 import { Point } from '../models/geometry.types';
 import { Placement } from '../models/nesting.interface';
+import { io, Socket } from 'socket.io-client';
 
 export interface ProcessedImage {
   id: string;
@@ -41,12 +42,26 @@ export interface NestingApiResponse {
   sheets?: SheetPlacement[];
   totalUtilization?: number;
   quantities?: { [stickerId: string]: number };
+  // For async polygon packing
+  jobId?: string;
+  message?: string;
+  type?: 'single-sheet' | 'multi-sheet';
 }
 
 export interface PdfGenerationRequest {
   placements: Placement[];
   sheetWidth: number;
   sheetHeight: number;
+}
+
+export interface NestingProgress {
+  jobId: string;
+  message: string;
+  currentSheet?: number;
+  totalSheets?: number;
+  itemsPlaced?: number;
+  totalItems?: number;
+  percentComplete?: number;
 }
 
 /**
@@ -59,6 +74,96 @@ export class ApiService {
   private http = inject(HttpClient);
   // Use relative URL - the proxy will handle this in development
   private baseUrl = '/api';
+
+  // Socket.IO connection
+  private socket: Socket | null = null;
+  private nestingProgress$ = new Subject<NestingProgress>();
+  private nestingComplete$ = new Subject<{ jobId: string; result: any }>();
+  private nestingError$ = new Subject<{ jobId: string; error: string }>();
+
+  /**
+   * Connect to Socket.IO server
+   */
+  connectSocket(): void {
+    if (this.socket?.connected) {
+      console.log('[API] Socket already connected');
+      return;
+    }
+
+    // Determine Socket.IO URL based on environment
+    const socketUrl = window.location.origin.includes('localhost:4200')
+      ? 'http://localhost:3001' // Development: connect to backend server
+      : window.location.origin; // Production: same origin
+
+    console.log(`[API] Connecting to Socket.IO at ${socketUrl}`);
+
+    this.socket = io(socketUrl, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5
+    });
+
+    this.socket.on('connect', () => {
+      console.log(`[API] Socket connected: ${this.socket?.id}`);
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      console.log(`[API] Socket disconnected: ${reason}`);
+    });
+
+    this.socket.on('nesting:progress', (data: NestingProgress) => {
+      console.log(`[API] Nesting progress:`, data);
+      this.nestingProgress$.next(data);
+    });
+
+    this.socket.on('nesting:complete', (data: { jobId: string; result: any }) => {
+      console.log(`[API] Nesting complete:`, data);
+      this.nestingComplete$.next(data);
+    });
+
+    this.socket.on('nesting:error', (data: { jobId: string; error: string }) => {
+      console.error(`[API] Nesting error:`, data);
+      this.nestingError$.next(data);
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.error('[API] Socket connection error:', error);
+    });
+  }
+
+  /**
+   * Disconnect from Socket.IO server
+   */
+  disconnectSocket(): void {
+    if (this.socket) {
+      console.log('[API] Disconnecting socket');
+      this.socket.disconnect();
+      this.socket = null;
+    }
+  }
+
+  /**
+   * Get Socket ID (null if not connected)
+   */
+  getSocketId(): string | null {
+    return this.socket?.id || null;
+  }
+
+  /**
+   * Get observables for nesting events
+   */
+  onNestingProgress(): Observable<NestingProgress> {
+    return this.nestingProgress$.asObservable();
+  }
+
+  onNestingComplete(): Observable<{ jobId: string; result: any }> {
+    return this.nestingComplete$.asObservable();
+  }
+
+  onNestingError(): Observable<{ jobId: string; error: string }> {
+    return this.nestingError$.asObservable();
+  }
 
   /**
    * Process uploaded images and extract vector paths
@@ -105,12 +210,21 @@ export class ApiService {
 
   /**
    * Run nesting algorithm
+   * For polygon packing, this returns a job ID and progress is sent via Socket.IO
+   * For rectangle packing, this returns the result directly
    */
   async nestStickers(request: NestingApiRequest): Promise<NestingApiResponse> {
+    // Include socket ID if connected and using polygon packing
+    const socketId = this.socket?.connected ? this.socket.id : null;
+    const requestWithSocket = {
+      ...request,
+      socketId: request.usePolygonPacking ? socketId : null
+    };
+
     return await firstValueFrom(
       this.http.post<NestingApiResponse>(
         `${this.baseUrl}/nesting/nest`,
-        request
+        requestWithSocket
       )
     );
   }
