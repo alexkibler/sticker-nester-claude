@@ -28,13 +28,13 @@ const testData = {
   pageCount: 2,
   sheetWidth: 8.5,
   sheetHeight: 11,
-  spacing: 0.0625,
+  spacing: 0.0625, // Test with normal spacing (will be reduced to 0.00625" internally)
   rotations: [0, 90, 180, 270]
 };
 
 console.log('\n=== Running Direct NFP Test ===\n');
 
-Multi SheetNFPNester.nestMultiSheet(
+MultiSheetNFPNester.nestMultiSheet(
   testData.polygons,
   testData.pageCount,
   testData.sheetWidth,

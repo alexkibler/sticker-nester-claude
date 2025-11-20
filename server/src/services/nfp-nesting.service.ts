@@ -134,7 +134,15 @@ export class NFPNester {
     private sheetHeight: number,
     private spacing: number = 0.0625,
     private rotations: number[] = [0, 90, 180, 270]
-  ) {}
+  ) {
+    // CRITICAL: Use reduced spacing for collision to allow interlocking
+    // Original spacing (e.g., 0.0625") destroys concave features needed for nesting
+    // Use 10% of requested spacing for tight packing, expand shapes in final PDF
+    this.actualPackingSpacing = Math.max(0.005, spacing * 0.1); // Min 0.005" gap
+    console.log(`[NFP] Packing with reduced spacing=${this.actualPackingSpacing.toFixed(4)}" (requested ${spacing.toFixed(4)}")`);
+  }
+
+  private actualPackingSpacing: number;
 
   async nest(polygons: NestablePolygon[]): Promise<{
     placements: NestedPlacement[];
@@ -182,45 +190,58 @@ export class NFPNester {
     let bestPlacement: NestedPlacement | null = null;
     let bestScore = Infinity;
 
+    let totalPositions = 0;
+    let boundsRejections = 0;
+    let collisionRejections = 0;
+
     // Try each rotation
     for (const rotation of this.rotations) {
       const rotated = rotation !== 0
         ? geometryService.rotatePoints(polygon.points, rotation)
         : polygon.points;
 
-      // Apply spacing for collision detection
-      const withSpacing = this.spacing > 0
-        ? geometryService.offsetPolygon(rotated, this.spacing / 2)
+      // Apply MINIMAL spacing offset to allow interlocking
+      const withMinimalSpacing = this.actualPackingSpacing > 0
+        ? geometryService.offsetPolygon(rotated, this.actualPackingSpacing / 2)
         : rotated;
 
-      const bbox = GeometryUtils.getPolygonBounds(withSpacing);
+      const bbox = GeometryUtils.getPolygonBounds(withMinimalSpacing);
+      const originalBbox = GeometryUtils.getPolygonBounds(rotated);
+
+      // Log polygon size for first few placements
+      if (this.placements.length <= 5 && rotation === 0) {
+        console.log(`  [DEBUG] Item ${polygon.id}: bbox ${originalBbox.width.toFixed(2)}×${originalBbox.height.toFixed(2)} → ${bbox.width.toFixed(2)}×${bbox.height.toFixed(2)} (minimal spacing), ${rotated.length} vertices`);
+      }
 
       // Generate candidate positions - DENSE GRID
       const positions = this.generateDenseCandidates(bbox);
+      totalPositions += positions.length;
 
       // Test each position
       for (const pos of positions) {
-        // Translate polygon to test position
+        // Translate polygon with minimal spacing offset
         const translated = GeometryUtils.translatePolygon(
-          withSpacing,
+          withMinimalSpacing,
           pos.x - bbox.minX,
           pos.y - bbox.minY
         );
 
         // Check bounds
         if (!CollisionDetector.isInBounds(translated, this.sheetWidth, this.sheetHeight)) {
+          boundsRejections++;
           continue;
         }
 
-        // Check collisions with placed polygons
+        // Check collisions with placed polygons (with minimal spacing)
         let hasCollision = false;
         for (const placed of this.placements) {
-          const placedWithSpacing = this.spacing > 0
-            ? geometryService.offsetPolygon(placed.points, this.spacing / 2)
+          const placedWithMinimalSpacing = this.actualPackingSpacing > 0
+            ? geometryService.offsetPolygon(placed.points, this.actualPackingSpacing / 2)
             : placed.points;
 
-          if (CollisionDetector.hasCollision(translated, placedWithSpacing)) {
+          if (CollisionDetector.hasCollision(translated, placedWithMinimalSpacing)) {
             hasCollision = true;
+            collisionRejections++;
             break;
           }
         }
@@ -232,8 +253,7 @@ export class NFPNester {
           if (score < bestScore) {
             bestScore = score;
 
-            // Store with original polygon (no spacing)
-            const originalBbox = GeometryUtils.getPolygonBounds(rotated);
+            // Store with ORIGINAL polygon (no spacing offset)
             const originalTranslated = GeometryUtils.translatePolygon(
               rotated,
               pos.x - originalBbox.minX,
@@ -252,73 +272,35 @@ export class NFPNester {
       }
     }
 
+    // Log rejection stats for failed placements
+    if (!bestPlacement) {
+      console.log(`  [DEBUG] ${polygon.id} FAILED: tested ${totalPositions} positions, ${boundsRejections} bounds fails, ${collisionRejections} collision fails`);
+    }
+
     return bestPlacement;
   }
 
   /**
-   * Generate dense grid of candidate positions
-   * Uses smart sampling: denser near placed items, coarser in empty areas
+   * Generate candidate positions using simple grid search
+   * Bottom-left heuristic: fill from bottom-left, row by row
    */
   private generateDenseCandidates(bbox: any): Point[] {
     const positions: Point[] = [];
 
-    if (this.placements.length === 0) {
-      // First item: try bottom-left corner and a few other spots
-      const step = 0.05;
-      for (let y = -bbox.minY; y <= Math.min(this.sheetHeight - bbox.maxY, 2); y += step) {
-        for (let x = -bbox.minX; x <= Math.min(this.sheetWidth - bbox.maxX, 2); x += step) {
-          positions.push({ x, y });
-        }
-      }
-      return positions.slice(0, 100);
-    }
+    // Use a fine grid across the entire sheet
+    const step = 0.1; // 0.1" grid spacing
 
-    // Subsequent items: dense grid around placed items + sparse global grid
-    const placedBounds: any[] = [];
-
-    for (const placement of this.placements) {
-      const pBbox = GeometryUtils.getPolygonBounds(placement.points);
-      placedBounds.push(pBbox);
-
-      // Sample densely around this placement
-      const searchRadius = Math.max(bbox.width, bbox.height);
-      const step = 0.05; // 0.05" = very fine
-
-      // Sample in a region around the placed item
-      const minX = Math.max(-bbox.minX, pBbox.minX - searchRadius);
-      const maxX = Math.min(this.sheetWidth - bbox.maxX, pBbox.maxX + searchRadius);
-      const minY = Math.max(-bbox.minY, pBbox.minY - searchRadius);
-      const maxY = Math.min(this.sheetHeight - bbox.maxY, pBbox.maxY + searchRadius);
-
-      for (let y = minY; y <= maxY; y += step) {
-        for (let x = minX; x <= maxX; x += step) {
-          positions.push({ x, y });
-        }
-      }
-    }
-
-    // Also add sparse global grid to find isolated spots
-    const globalStep = 0.25;
-    for (let y = -bbox.minY; y <= this.sheetHeight - bbox.maxY; y += globalStep) {
-      for (let x = -bbox.minX; x <= this.sheetWidth - bbox.maxX; x += globalStep) {
+    for (let y = -bbox.minY; y <= this.sheetHeight - bbox.maxY; y += step) {
+      for (let x = -bbox.minX; x <= this.sheetWidth - bbox.maxX; x += step) {
         positions.push({ x, y });
       }
     }
 
-    // Remove duplicates (simple approach: round to grid)
-    const seen = new Set<string>();
-    const unique = positions.filter(p => {
-      const key = `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    // Sort by bottom-left preference
+    positions.sort((a, b) => (a.y * 100 + a.x) - (b.y * 100 + b.x));
 
-    // Sort by score (bottom-first, then left)
-    unique.sort((a, b) => (a.y * 100 + a.x) - (b.y * 100 + b.x));
-
-    // Return top candidates
-    return unique.slice(0, 2000); // Test up to 2000 positions
+    // Return all positions (we'll test them all)
+    return positions;
   }
 }
 
