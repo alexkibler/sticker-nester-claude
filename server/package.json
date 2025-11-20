@@ -13,6 +13,7 @@
     "test:verbose": "jest --verbose"
   },
   "dependencies": {
+    "@types/socket.io": "^3.0.1",
     "clipper-lib": "^1.0.0",
     "cors": "^2.8.5",
     "express": "^4.18.2",
