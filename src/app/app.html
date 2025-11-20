@@ -79,6 +79,13 @@
           [visible]="showUploadProgress"
         ></app-progress-bar>
 
+        <!-- Nesting Progress (Polygon Packing) -->
+        <app-progress-bar
+          [label]="nestingMessage || 'Running Polygon Packing'"
+          [progress]="nestingProgress"
+          [visible]="showNestingProgress"
+        ></app-progress-bar>
+
         <!-- PDF Generation Progress -->
         <app-progress-bar
           [label]="'Generating PDF'"
