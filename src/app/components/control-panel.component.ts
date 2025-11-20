@@ -102,6 +102,155 @@ import {
           </small>
         </div>
 
+        <!-- Optimizer Selection (only shown when polygon packing is enabled) -->
+        <div class="form-group optimizer-section" *ngIf="config.usePolygonPacking">
+          <label class="optimizer-label">🧬 Optimizer:</label>
+          <select
+            [(ngModel)]="config.optimizer"
+            (change)="onOptimizerChange()"
+            class="optimizer-select"
+          >
+            <option value="greedy">Greedy (Fast - 15-30s)</option>
+            <option value="annealing">Simulated Annealing (2-4 min)</option>
+            <option value="genetic">Genetic Algorithm (8-15 min)</option>
+          </select>
+          <small class="help-text">
+            {{ getOptimizerDescription() }}
+          </small>
+        </div>
+
+        <!-- Simulated Annealing Configuration -->
+        <div class="optimizer-config" *ngIf="config.usePolygonPacking && config.optimizer === 'annealing'">
+          <h4 class="config-subtitle">⚙️ Annealing Settings</h4>
+
+          <div class="form-group compact">
+            <label>Temperature:</label>
+            <input
+              type="number"
+              [(ngModel)]="config.annealingConfig.temperature"
+              min="50"
+              max="200"
+              step="10"
+              (change)="onConfigChange()"
+            />
+            <small class="help-text">Higher = more exploration (50-200)</small>
+          </div>
+
+          <div class="form-group compact">
+            <label>Cooling Rate:</label>
+            <input
+              type="number"
+              [(ngModel)]="config.annealingConfig.coolingRate"
+              min="0.85"
+              max="0.99"
+              step="0.01"
+              (change)="onConfigChange()"
+            />
+            <small class="help-text">Slower cooling = better quality (0.85-0.99)</small>
+          </div>
+
+          <div class="form-group compact">
+            <label>Iterations:</label>
+            <input
+              type="number"
+              [(ngModel)]="config.annealingConfig.iterations"
+              min="100"
+              max="1000"
+              step="100"
+              (change)="onConfigChange()"
+            />
+            <small class="help-text">More = better quality, slower (100-1000)</small>
+          </div>
+
+          <button
+            type="button"
+            class="preset-btn"
+            (click)="setAnnealingPreset('fast')"
+          >
+            Fast (1 min)
+          </button>
+          <button
+            type="button"
+            class="preset-btn"
+            (click)="setAnnealingPreset('balanced')"
+          >
+            Balanced (2 min)
+          </button>
+          <button
+            type="button"
+            class="preset-btn"
+            (click)="setAnnealingPreset('best')"
+          >
+            Best (5 min)
+          </button>
+        </div>
+
+        <!-- Genetic Algorithm Configuration -->
+        <div class="optimizer-config" *ngIf="config.usePolygonPacking && config.optimizer === 'genetic'">
+          <h4 class="config-subtitle">🧬 Genetic Settings</h4>
+
+          <div class="form-group compact">
+            <label>Population Size:</label>
+            <input
+              type="number"
+              [(ngModel)]="config.geneticConfig.populationSize"
+              min="10"
+              max="100"
+              step="10"
+              (change)="onConfigChange()"
+            />
+            <small class="help-text">More = better quality, slower (10-100)</small>
+          </div>
+
+          <div class="form-group compact">
+            <label>Generations:</label>
+            <input
+              type="number"
+              [(ngModel)]="config.geneticConfig.generations"
+              min="20"
+              max="300"
+              step="10"
+              (change)="onConfigChange()"
+            />
+            <small class="help-text">More = better convergence (20-300)</small>
+          </div>
+
+          <div class="form-group compact">
+            <label>Mutation Rate:</label>
+            <input
+              type="number"
+              [(ngModel)]="config.geneticConfig.mutationRate"
+              min="0.05"
+              max="0.3"
+              step="0.05"
+              (change)="onConfigChange()"
+            />
+            <small class="help-text">Higher = more exploration (0.05-0.3)</small>
+          </div>
+
+          <button
+            type="button"
+            class="preset-btn"
+            (click)="setGeneticPreset('fast')"
+          >
+            Fast (5 min)
+          </button>
+          <button
+            type="button"
+            class="preset-btn"
+            (click)="setGeneticPreset('balanced')"
+          >
+            Balanced (10 min)
+          </button>
+          <button
+            type="button"
+            class="preset-btn"
+            (click)="setGeneticPreset('best')"
+          >
+            Best (30 min)
+          </button>
+        </div>
+
         <!-- Number of Sheets -->
         <div class="form-group" *ngIf="config.productionMode">
           <label>Number of Sheets:</label>
@@ -418,6 +567,91 @@ import {
       line-height: 1.4;
     }
 
+    /* Optimizer section styles */
+    .optimizer-section {
+      padding: 12px;
+      background-color: #f0f4ff;
+      border-radius: 4px;
+      margin-top: 15px;
+      border: 2px solid #2196F3;
+    }
+
+    .optimizer-label {
+      font-weight: 700 !important;
+      color: #2196F3 !important;
+    }
+
+    .optimizer-select {
+      font-weight: 500;
+      background-color: white;
+      border: 2px solid #2196F3;
+    }
+
+    .optimizer-select:focus {
+      border-color: #0b7dda;
+      background-color: #f8fbff;
+    }
+
+    /* Optimizer configuration panel */
+    .optimizer-config {
+      margin-top: 12px;
+      padding: 12px;
+      background-color: white;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+
+    .config-subtitle {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: #2196F3;
+      font-weight: 600;
+    }
+
+    /* Compact form groups for optimizer config */
+    .form-group.compact {
+      margin-bottom: 10px;
+    }
+
+    .form-group.compact label {
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .form-group.compact input {
+      padding: 6px;
+      font-size: 13px;
+    }
+
+    .form-group.compact .help-text {
+      font-size: 10px;
+      margin-top: 3px;
+    }
+
+    /* Preset buttons */
+    .preset-btn {
+      display: inline-block;
+      padding: 6px 12px;
+      margin: 4px 4px 4px 0;
+      border: 1px solid #2196F3;
+      border-radius: 4px;
+      background-color: white;
+      color: #2196F3;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .preset-btn:hover {
+      background-color: #2196F3;
+      color: white;
+    }
+
+    .preset-btn:active {
+      transform: scale(0.95);
+    }
+
     .btn {
       width: 100%;
       padding: 10px;
@@ -528,7 +762,18 @@ export class ControlPanelComponent implements OnInit {
     usePolygonPacking: false,  // Use polygon-based packing instead of rectangle packing
     rotationPreset: '15',      // Rotation granularity: '90', '45', '15', '10', '5'
     cellsPerInch: 50,          // Grid resolution for polygon packing (default from 15° preset)
-    stepSize: 0.1              // Position search step size for polygon packing in inches (default from 15° preset)
+    stepSize: 0.1,             // Position search step size for polygon packing in inches (default from 15° preset)
+    optimizer: 'greedy' as 'greedy' | 'annealing' | 'genetic',  // Optimizer algorithm
+    annealingConfig: {
+      temperature: 100,        // Initial temperature (50-200)
+      coolingRate: 0.95,       // Cooling rate per iteration (0.85-0.99)
+      iterations: 500          // Number of iterations (100-1000)
+    },
+    geneticConfig: {
+      populationSize: 30,      // Number of solutions in population (10-100)
+      generations: 100,        // Number of generations (20-300)
+      mutationRate: 0.15       // Probability of mutation (0.05-0.3)
+    }
   };
 
   // Sheet size state
@@ -770,6 +1015,89 @@ export class ControlPanelComponent implements OnInit {
   }
 
   /**
+   * Handle optimizer change
+   */
+  onOptimizerChange(): void {
+    this.emitConfig();
+  }
+
+  /**
+   * Get description for selected optimizer
+   */
+  getOptimizerDescription(): string {
+    switch (this.config.optimizer) {
+      case 'greedy':
+        return 'Bottom-left heuristic with edge-touching search. Fast and reliable (75-90% utilization).';
+      case 'annealing':
+        return 'Probabilistic hill climbing with random jumps. Better quality (80-92% utilization), 8-10x slower.';
+      case 'genetic':
+        return 'Population-based evolution. Best quality (85-95% utilization), 30-60x slower.';
+      default:
+        return '';
+    }
+  }
+
+  /**
+   * Set simulated annealing preset
+   */
+  setAnnealingPreset(preset: 'fast' | 'balanced' | 'best'): void {
+    switch (preset) {
+      case 'fast':
+        this.config.annealingConfig = {
+          temperature: 75,
+          coolingRate: 0.92,
+          iterations: 300
+        };
+        break;
+      case 'balanced':
+        this.config.annealingConfig = {
+          temperature: 100,
+          coolingRate: 0.95,
+          iterations: 500
+        };
+        break;
+      case 'best':
+        this.config.annealingConfig = {
+          temperature: 150,
+          coolingRate: 0.97,
+          iterations: 800
+        };
+        break;
+    }
+    this.emitConfig();
+  }
+
+  /**
+   * Set genetic algorithm preset
+   */
+  setGeneticPreset(preset: 'fast' | 'balanced' | 'best'): void {
+    switch (preset) {
+      case 'fast':
+        this.config.geneticConfig = {
+          populationSize: 20,
+          generations: 50,
+          mutationRate: 0.2
+        };
+        break;
+      case 'balanced':
+        this.config.geneticConfig = {
+          populationSize: 30,
+          generations: 100,
+          mutationRate: 0.15
+        };
+        break;
+      case 'best':
+        this.config.geneticConfig = {
+          populationSize: 50,
+          generations: 200,
+          mutationRate: 0.1
+        };
+        break;
+    }
+    this.emitConfig();
+  }
+
+  /**
    * Emit configuration to parent component
    */
   private emitConfig(): void {
@@ -785,7 +1113,10 @@ export class ControlPanelComponent implements OnInit {
       usePolygonPacking: this.config.usePolygonPacking,
       rotationPreset: this.config.rotationPreset,
       cellsPerInch: this.config.cellsPerInch,
-      stepSize: this.config.stepSize
+      stepSize: this.config.stepSize,
+      optimizer: this.config.optimizer,
+      annealingConfig: this.config.annealingConfig,
+      geneticConfig: this.config.geneticConfig
     });
   }
 }

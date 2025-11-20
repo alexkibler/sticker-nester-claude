@@ -82,7 +82,18 @@ export class App implements OnInit, OnDestroy {
     unit: 'inches' as 'inches' | 'mm',  // User's preferred unit
     usePolygonPacking: false,  // Use polygon-based packing instead of rectangle packing
     cellsPerInch: 100,         // Grid resolution for polygon packing
-    stepSize: 0.05             // Position search step size for polygon packing (inches)
+    stepSize: 0.05,            // Position search step size for polygon packing (inches)
+    optimizer: 'greedy' as 'greedy' | 'annealing' | 'genetic',  // Optimizer algorithm
+    annealingConfig: {
+      temperature: 100,        // Initial temperature (50-200)
+      coolingRate: 0.95,       // Cooling rate per iteration (0.85-0.99)
+      iterations: 500          // Number of iterations (100-1000)
+    },
+    geneticConfig: {
+      populationSize: 30,      // Number of solutions in population (10-100)
+      generations: 100,        // Number of generations (20-300)
+      mutationRate: 0.15       // Probability of mutation (0.05-0.3)
+    }
   };
 
   private subscriptions = new Subscription();
@@ -230,7 +241,14 @@ export class App implements OnInit, OnDestroy {
         // Production mode: Fill REQUESTED pages exactly, don't auto-expand
         // packAllItems=false = fill N pages (production default)
         // packAllItems=true = auto-expand until all items fit (special case)
-        packAllItems: false  // Always false for production - fill requested pages only
+        packAllItems: false,  // Always false for production - fill requested pages only
+        // Optimizer settings
+        optimizer: this.config.optimizer,
+        optimizerConfig: this.config.optimizer === 'annealing'
+          ? this.config.annealingConfig
+          : this.config.optimizer === 'genetic'
+            ? this.config.geneticConfig
+            : undefined
       };
 
       // Add quantities for production mode
