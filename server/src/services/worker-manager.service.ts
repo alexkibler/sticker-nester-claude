@@ -62,6 +62,18 @@ export class WorkerManagerService {
           options.onProgress?.(message);
         } else if (message.type === 'result') {
           console.log(`[WorkerManager] Job ${jobId} completed successfully`);
+
+          // Log summary of results
+          if (message.result.sheets) {
+            console.log(`[WorkerManager] Result: ${message.result.sheets.length} sheets, ${message.result.totalUtilization?.toFixed(1)}% utilization`);
+            message.result.sheets.forEach((sheet: any, idx: number) => {
+              console.log(`[WorkerManager]   Sheet ${idx + 1}: ${sheet.placements?.length || 0} placements`);
+            });
+            if (message.result.quantities) {
+              console.log(`[WorkerManager]   Quantities:`, JSON.stringify(message.result.quantities));
+            }
+          }
+
           settled = true;
           options.onComplete?.(message.result);
           this.terminateWorker(jobId);
