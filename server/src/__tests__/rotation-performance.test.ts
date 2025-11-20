@@ -96,12 +96,12 @@ describe('Rotation Performance Comparison', () => {
   /**
    * Run packing test with a specific rotation preset
    */
-  const runPackingTest = (
+  const runPackingTest = async (
     presetName: string,
     polygons: PackablePolygon[],
     sheetWidth: number = 5,
     sheetHeight: number = 5
-  ): TestResult => {
+  ): Promise<TestResult> => {
     const preset = RotationConfigService.getPresetByName(presetName);
     if (!preset) {
       throw new Error(`Preset not found: ${presetName}`);
@@ -116,7 +116,7 @@ describe('Rotation Performance Comparison', () => {
       preset.rotations
     );
 
-    const result = packer.pack(polygons, true); // trackPerformance = true
+    const result = await packer.pack(polygons, true); // trackPerformance = true
 
     return {
       preset: presetName,
@@ -127,7 +127,7 @@ describe('Rotation Performance Comparison', () => {
   };
 
   describe('Performance Comparison', () => {
-    test('Compare all rotation presets on same dataset', () => {
+    test('Compare all rotation presets on same dataset', async () => {
       const testPolygons = createTestPolygons();
       const results: TestResult[] = [];
 
@@ -148,7 +148,7 @@ describe('Rotation Performance Comparison', () => {
       console.log('╚════════════════════════════════════════════════════════════════╝\n');
 
       for (const presetName of presets) {
-        const result = runPackingTest(presetName, testPolygons);
+        const result = await runPackingTest(presetName, testPolygons);
         results.push(result);
 
         console.log(`\n📊 ${presetName}`);
@@ -237,7 +237,7 @@ describe('Rotation Performance Comparison', () => {
   });
 
   describe('Real-world scenario: Complex sticker shapes', () => {
-    test('Pack 10 irregular stickers with different rotation granularities', () => {
+    test('Pack 10 irregular stickers with different rotation granularities', async () => {
       // Create 10 irregular stickers of various sizes
       const stickers: PackablePolygon[] = Array.from({ length: 10 }, (_, i) => ({
         id: `sticker_${i}`,
@@ -257,8 +257,8 @@ describe('Rotation Performance Comparison', () => {
       console.log('║        Real-world Test: 10 Irregular Stickers                  ║');
       console.log('╚════════════════════════════════════════════════════════════════╝\n');
 
-      const results90 = runPackingTest('90° Only', stickers, 8, 8);
-      const results15 = runPackingTest('15° Steps (Recommended)', stickers, 8, 8);
+      const results90 = await runPackingTest('90° Only', stickers, 8, 8);
+      const results15 = await runPackingTest('15° Steps (Recommended)', stickers, 8, 8);
 
       console.log('\nComparison:');
       console.log(`  90° Only:      ${results90.placementCount} placed, ${results90.utilization.toFixed(1)}% util, ${results90.performance.totalTimeSec.toFixed(2)}s`);
@@ -277,13 +277,13 @@ describe('Rotation Performance Comparison', () => {
   });
 
   describe('Edge cases', () => {
-    test('Empty polygon array', () => {
-      const result = runPackingTest('90° Only', [], 5, 5);
+    test('Empty polygon array', async () => {
+      const result = await runPackingTest('90° Only', [], 5, 5);
       expect(result.placementCount).toBe(0);
       expect(result.utilization).toBe(0);
     });
 
-    test('Single polygon', () => {
+    test('Single polygon', async () => {
       const polygon: PackablePolygon = {
         id: 'single',
         points: [
@@ -297,12 +297,12 @@ describe('Rotation Performance Comparison', () => {
         area: 1,
       };
 
-      const result = runPackingTest('90° Only', [polygon], 5, 5);
+      const result = await runPackingTest('90° Only', [polygon], 5, 5);
       expect(result.placementCount).toBe(1);
       expect(result.utilization).toBeGreaterThan(0);
     });
 
-    test('Polygon too large for sheet', () => {
+    test('Polygon too large for sheet', async () => {
       const largePolygon: PackablePolygon = {
         id: 'too_large',
         points: [
@@ -316,7 +316,7 @@ describe('Rotation Performance Comparison', () => {
         area: 100,
       };
 
-      const result = runPackingTest('90° Only', [largePolygon], 5, 5);
+      const result = await runPackingTest('90° Only', [largePolygon], 5, 5);
       expect(result.placementCount).toBe(0); // Too large to fit
       expect(result.performance.failedPlacements).toBe(1);
     });

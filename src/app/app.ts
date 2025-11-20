@@ -66,6 +66,9 @@ export class App implements OnInit, OnDestroy {
   pdfCurrentPage = 0;
   pdfTotalPages = 0;
   showPdfProgress = false;
+  nestingProgress = 0;
+  nestingMessage = '';
+  showNestingProgress = false;
 
   // Configuration (stored in millimeters)
   config = {
@@ -90,11 +93,37 @@ export class App implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // No subscriptions needed for backend API approach
+    // Connect to Socket.IO for real-time nesting progress
+    this.apiService.connectSocket();
+
+    // Subscribe to nesting events
+    this.subscriptions.add(
+      this.apiService.onNestingProgress().subscribe((progress: any) => {
+        console.log('Nesting progress:', progress);
+        // Update UI with progress
+        this.updateNestingProgress(progress);
+      })
+    );
+
+    this.subscriptions.add(
+      this.apiService.onNestingComplete().subscribe(({ jobId, result }: { jobId: string; result: any }) => {
+        console.log('Nesting complete:', jobId, result);
+        this.handleNestingComplete(result);
+      })
+    );
+
+    this.subscriptions.add(
+      this.apiService.onNestingError().subscribe(({ jobId, error }: { jobId: string; error: string }) => {
+        console.error('Nesting error:', jobId, error);
+        alert(`Nesting error: ${error}`);
+        this.isNesting = false;
+      })
+    );
   }
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
+    this.apiService.disconnectSocket();
   }
 
   /**
@@ -197,7 +226,10 @@ export class App implements OnInit, OnDestroy {
         sheetCount: this.config.sheetCount,
         usePolygonPacking: this.config.usePolygonPacking,
         cellsPerInch: this.config.cellsPerInch,
-        stepSize: this.config.stepSize
+        stepSize: this.config.stepSize,
+        // For polygon packing: packAllItems=true means fill ALL stickers, auto-expand pages
+        // For rectangle packing: uses quantities instead
+        packAllItems: this.config.productionMode ? true : false
       };
 
       // Add quantities for production mode
@@ -226,6 +258,67 @@ export class App implements OnInit, OnDestroy {
       // Call backend API for nesting
       const response = await this.apiService.nestStickers(requestPayload);
 
+      // Check if this is async polygon packing (returns a job ID)
+      if (response.jobId) {
+        console.log(`Polygon packing job started: ${response.jobId}`);
+        this.showNestingProgress = true;
+        this.nestingProgress = 0;
+        this.nestingMessage = 'Starting polygon packing...';
+        // Result will be handled via Socket.IO events
+        // Don't set isNesting to false yet - wait for completion
+        return;
+      }
+
+      // Handle synchronous response (rectangle packing)
+      this.handleNestingComplete(response);
+    } catch (error) {
+      console.error('Nesting error:', error);
+      alert('Error running nesting algorithm. Please try again.');
+      this.isNesting = false;
+      this.showNestingProgress = false;
+    }
+  }
+
+  /**
+   * Update nesting progress from Socket.IO events
+   */
+  private updateNestingProgress(progress: any): void {
+    this.nestingProgress = progress.percentComplete || 0;
+    this.nestingMessage = progress.message || 'Processing...';
+
+    // Handle real-time placement updates
+    if (progress.placement) {
+      const { sheetIndex, id, x, y, rotation } = progress.placement;
+
+      // Initialize sheets array if needed
+      if (this.sheets.length === 0 || !this.sheets[sheetIndex]) {
+        // Ensure we have enough sheets
+        while (this.sheets.length <= sheetIndex) {
+          this.sheets.push({
+            sheetIndex: this.sheets.length,
+            placements: [],
+            utilization: 0
+          });
+        }
+      }
+
+      // Add placement to the appropriate sheet
+      this.sheets[sheetIndex].placements.push({ id, x, y, rotation });
+
+      // Update first sheet's placements for single-sheet preview compatibility
+      if (this.sheets.length > 0) {
+        this.placements = this.sheets[0].placements;
+      }
+
+      console.log(`[Real-time] Placed ${id} on sheet ${sheetIndex + 1} at (${x.toFixed(1)}, ${y.toFixed(1)})`);
+    }
+  }
+
+  /**
+   * Handle nesting completion (from both sync and async paths)
+   */
+  private handleNestingComplete(response: any): void {
+    try {
       // Handle multi-sheet response
       if (response.sheets && response.sheets.length > 0) {
         this.sheets = response.sheets;
@@ -239,11 +332,11 @@ export class App implements OnInit, OnDestroy {
         this.utilization = response.utilization || 0;
         this.currentFitness = response.fitness || 0;
       }
-    } catch (error) {
-      console.error('Nesting error:', error);
-      alert('Error running nesting algorithm. Please try again.');
+
+      console.log(`Nesting complete: ${this.placements.length} placements, ${this.utilization.toFixed(1)}% utilization`);
     } finally {
       this.isNesting = false;
+      this.showNestingProgress = false;
     }
   }
 

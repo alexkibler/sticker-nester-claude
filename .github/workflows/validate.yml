@@ -1,0 +1,52 @@
+name: Validate Build
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: |
+          PUPPETEER_SKIP_DOWNLOAD=true npm ci
+
+      - name: Install backend dependencies
+        run: |
+          cd server
+          npm ci
+
+      - name: Build backend
+        run: |
+          cd server
+          npm run build
+
+      - name: Run backend tests
+        run: |
+          cd server
+          npm test
+
+      - name: Build frontend
+        run: |
+          PUPPETEER_SKIP_DOWNLOAD=true npm run build
+
+      - name: Validation summary
+        if: success()
+        run: |
+          echo "✅ All validation checks passed!"
+          echo "- Backend compiled successfully"
+          echo "- All backend tests passed"
+          echo "- Frontend built successfully"

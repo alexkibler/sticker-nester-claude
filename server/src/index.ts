@@ -2,11 +2,34 @@ import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import { nestingRouter } from './routes/nesting.routes';
 import { pdfRouter } from './routes/pdf.routes';
+import { WorkerManagerService } from './services/worker-manager.service';
 
 const app: Express = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3001;
+
+// Initialize Socket.IO
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production'
+      ? false // In production, use same origin
+      : ['http://localhost:4200', 'http://localhost:8084'], // Allow dev servers
+    methods: ['GET', 'POST']
+  },
+  pingTimeout: 60000, // 60 seconds
+  pingInterval: 25000  // 25 seconds
+});
+
+// Initialize Worker Manager
+const workerManager = new WorkerManagerService();
+
+// Make io and workerManager available to routes via app.locals
+app.locals.io = io;
+app.locals.workerManager = workerManager;
 
 // Middleware
 app.use(cors());
@@ -61,10 +84,37 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   });
 });
 
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log(`🔌 Client connected: ${socket.id}`);
+
+  socket.on('disconnect', (reason) => {
+    console.log(`❌ Client disconnected: ${socket.id} (${reason})`);
+  });
+
+  socket.on('error', (error) => {
+    console.error(`⚠️  Socket error for ${socket.id}:`, error);
+  });
+});
+
+// Graceful shutdown: terminate all workers
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, cleaning up workers...');
+  workerManager.terminateAll();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, cleaning up workers...');
+  workerManager.terminateAll();
+  process.exit(0);
+});
+
 // Start server
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`⚡️ Server is running on port ${PORT}`);
   console.log(`🎨 Mosaic API ready at http://localhost:${PORT}/api`);
+  console.log(`🔌 Socket.IO ready for real-time communication`);
 });
 
 export default app;
