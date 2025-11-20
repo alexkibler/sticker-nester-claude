@@ -102,9 +102,10 @@ router.post('/nest', async (req: Request, res: Response) => {
     } = req.body;
 
     // Convert rotationPreset to actual parameters if provided
-    let finalRotations = rotations || [0, 90, 180, 270];
-    let finalCellsPerInch = cellsPerInch || 100;
-    let finalStepSize = stepSize || 0.05;
+    // DEFAULT: Use 15° increments for better packing (24 angles)
+    let finalRotations = rotations || [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345];
+    let finalCellsPerInch = cellsPerInch || 50;
+    let finalStepSize = stepSize || 0.1;
 
     if (rotationPreset) {
       // Map preset to optimized parameters

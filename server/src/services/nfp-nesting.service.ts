@@ -281,26 +281,99 @@ export class NFPNester {
   }
 
   /**
-   * Generate candidate positions using simple grid search
-   * Bottom-left heuristic: fill from bottom-left, row by row
+   * Generate candidate positions using multi-strategy approach:
+   * 1. Edge-touching positions (highest priority - tight packing)
+   * 2. Fine grid near placed items (0.02" for tight fitting)
+   * 3. Coarse grid across sheet (0.1" for general exploration)
    */
   private generateDenseCandidates(bbox: any): Point[] {
-    const positions: Point[] = [];
+    const positions = new Set<string>(); // Use set to avoid duplicates
+    const coarseStep = 0.1;  // Coarse grid for general exploration
+    const fineStep = 0.02;   // Fine grid near placed items for tight fits
+    const margin = 0.5;      // Search this far around placed items with fine grid
 
-    // Use a fine grid across the entire sheet
-    const step = 0.1; // 0.1" grid spacing
+    // 1. EDGE-TOUCHING positions (highest priority)
+    // Test positions where new item touches edges of placed items
+    for (const placed of this.placements) {
+      const placedBbox = GeometryUtils.getPolygonBounds(placed.points);
 
-    for (let y = -bbox.minY; y <= this.sheetHeight - bbox.maxY; y += step) {
-      for (let x = -bbox.minX; x <= this.sheetWidth - bbox.maxX; x += step) {
-        positions.push({ x, y });
+      // Right edge of placed item
+      const rightX = placedBbox.maxX - bbox.minX;
+      if (rightX >= -bbox.minX && rightX <= this.sheetWidth - bbox.maxX) {
+        // Try multiple Y positions along the edge
+        for (let y = Math.max(-bbox.minY, placedBbox.minY - bbox.height);
+             y <= Math.min(this.sheetHeight - bbox.maxY, placedBbox.maxY);
+             y += fineStep) {
+          positions.add(`${rightX.toFixed(3)},${y.toFixed(3)}`);
+        }
+      }
+
+      // Top edge of placed item
+      const topY = placedBbox.maxY - bbox.minY;
+      if (topY >= -bbox.minY && topY <= this.sheetHeight - bbox.maxY) {
+        // Try multiple X positions along the edge
+        for (let x = Math.max(-bbox.minX, placedBbox.minX - bbox.width);
+             x <= Math.min(this.sheetWidth - bbox.maxX, placedBbox.maxX);
+             x += fineStep) {
+          positions.add(`${x.toFixed(3)},${topY.toFixed(3)}`);
+        }
+      }
+
+      // Left edge of placed item (less priority, but sometimes useful)
+      const leftX = placedBbox.minX - bbox.maxX;
+      if (leftX >= -bbox.minX && leftX <= this.sheetWidth - bbox.maxX) {
+        for (let y = Math.max(-bbox.minY, placedBbox.minY - bbox.height);
+             y <= Math.min(this.sheetHeight - bbox.maxY, placedBbox.maxY);
+             y += coarseStep) {
+          positions.add(`${leftX.toFixed(3)},${y.toFixed(3)}`);
+        }
+      }
+
+      // Bottom edge of placed item (less priority)
+      const bottomY = placedBbox.minY - bbox.maxY;
+      if (bottomY >= -bbox.minY && bottomY <= this.sheetHeight - bbox.maxY) {
+        for (let x = Math.max(-bbox.minX, placedBbox.minX - bbox.width);
+             x <= Math.min(this.sheetWidth - bbox.maxX, placedBbox.maxX);
+             x += coarseStep) {
+          positions.add(`${x.toFixed(3)},${bottomY.toFixed(3)}`);
+        }
       }
     }
 
-    // Sort by bottom-left preference
-    positions.sort((a, b) => (a.y * 100 + a.x) - (b.y * 100 + b.x));
+    // 2. Fine grid near placed items (tight fitting)
+    for (const placed of this.placements) {
+      const placedBbox = GeometryUtils.getPolygonBounds(placed.points);
 
-    // Return all positions (we'll test them all)
-    return positions;
+      // Fine grid around this placed item
+      const minY = Math.max(-bbox.minY, placedBbox.minY - margin);
+      const maxY = Math.min(this.sheetHeight - bbox.maxY, placedBbox.maxY + margin);
+      const minX = Math.max(-bbox.minX, placedBbox.minX - margin);
+      const maxX = Math.min(this.sheetWidth - bbox.maxX, placedBbox.maxX + margin);
+
+      for (let y = minY; y <= maxY; y += fineStep) {
+        for (let x = minX; x <= maxX; x += fineStep) {
+          positions.add(`${x.toFixed(3)},${y.toFixed(3)}`);
+        }
+      }
+    }
+
+    // 3. Coarse grid across entire sheet (general exploration)
+    for (let y = -bbox.minY; y <= this.sheetHeight - bbox.maxY; y += coarseStep) {
+      for (let x = -bbox.minX; x <= this.sheetWidth - bbox.maxX; x += coarseStep) {
+        positions.add(`${x.toFixed(3)},${y.toFixed(3)}`);
+      }
+    }
+
+    // 4. Convert set to array of points
+    const pointsArray = Array.from(positions).map(key => {
+      const [x, y] = key.split(',').map(Number);
+      return { x, y };
+    });
+
+    // Sort by bottom-left preference (prioritizes tight packing)
+    pointsArray.sort((a, b) => (a.y * 100 + a.x) - (b.y * 100 + b.x));
+
+    return pointsArray;
   }
 }
 
@@ -347,8 +420,13 @@ export class MultiSheetNFPNester {
 
     console.log(`Generated ${candidatePool.length} candidates (20% oversubscribed)`);
 
-    // Sort by area descending (big items first)
-    candidatePool.sort((a, b) => b.area - a.area);
+    // Sort by composite score: area × complexity (vertex count)
+    // This prioritizes large, complex shapes that are harder to place
+    candidatePool.sort((a, b) => {
+      const scoreA = a.area * Math.sqrt(a.points.length);
+      const scoreB = b.area * Math.sqrt(b.points.length);
+      return scoreB - scoreA;
+    });
 
     // Pack sheets
     const sheets: any[] = [];
