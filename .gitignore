@@ -47,3 +47,10 @@ e2e-frontend.log
 .DS_Store
 Thumbs.db
 
+# C++ packer build artifacts
+server/cpp-packer/build/
+server/cpp-packer/bin/
+server/cpp-packer/.cmake/
+server/cpp-packer/CMakeCache.txt
+server/cpp-packer/CMakeFiles/
+

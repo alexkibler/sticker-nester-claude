@@ -10,7 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:verbose": "jest --verbose"
+    "test:verbose": "jest --verbose",
+    "benchmark": "ts-node src/__tests__/cpp-packer.benchmark.ts"
   },
   "dependencies": {
     "clipper-lib": "^1.0.0",
