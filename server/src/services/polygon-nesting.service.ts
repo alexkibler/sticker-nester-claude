@@ -218,6 +218,8 @@ export class GravityNester {
   /**
    * Find best nesting position for a polygon
    * Tries to nestle it tightly against already-placed polygons
+   *
+   * KEY: Use offset polygon for collision detection, but return ORIGINAL polygon for display
    */
   private async findNestingPosition(polygon: NestablePolygon): Promise<NestedPlacement | null> {
     let bestPlacement: NestedPlacement | null = null;
@@ -225,29 +227,46 @@ export class GravityNester {
 
     // Try each rotation
     for (const rotation of this.rotations) {
-      const rotated = this.preparePolygon(polygon, rotation);
-      const bbox = geometryService.getBoundingBox(rotated);
+      // Get rotated polygon WITHOUT spacing (for final display)
+      const rotatedOriginal = rotation !== 0
+        ? geometryService.rotatePoints(polygon.points, rotation)
+        : polygon.points;
+
+      // Get rotated polygon WITH spacing (for collision detection)
+      const rotatedWithSpacing = this.preparePolygon(polygon, rotation);
+      const bboxWithSpacing = geometryService.getBoundingBox(rotatedWithSpacing);
 
       // If this is the first polygon, place at origin
       if (this.placements.length === 0) {
-        const translated = this.translatePolygon(rotated, 0, 0, bbox);
-        if (CollisionDetector.isInBounds(translated, this.sheetWidth, this.sheetHeight)) {
+        const translatedWithSpacing = this.translatePolygon(rotatedWithSpacing, 0, 0, bboxWithSpacing);
+        if (CollisionDetector.isInBounds(translatedWithSpacing, this.sheetWidth, this.sheetHeight)) {
+          // Return ORIGINAL polygon (without spacing offset) at found position
+          const bboxOriginal = geometryService.getBoundingBox(rotatedOriginal);
+          const translatedOriginal = this.translatePolygon(rotatedOriginal, 0, 0, bboxOriginal);
+
           return {
             id: polygon.id,
             x: 0,
             y: 0,
             rotation,
-            points: translated
+            points: translatedOriginal  // Original shape, not offset
           };
         }
         continue;
       }
 
       // Try "gravity drop" from various starting positions
-      const candidates = this.generateCandidatePositions(bbox);
+      const candidates = this.generateCandidatePositions(bboxWithSpacing);
 
       for (const startPos of candidates) {
-        const nestPosition = this.gravityDrop(rotated, bbox, startPos.x, startPos.y, rotation);
+        // Find position using OFFSET polygon (with spacing)
+        const nestPosition = this.gravityDrop(
+          rotatedWithSpacing,
+          bboxWithSpacing,
+          startPos.x,
+          startPos.y,
+          rotation
+        );
 
         if (nestPosition) {
           // Score based on distance from origin (prefer bottom-left)
@@ -255,10 +274,22 @@ export class GravityNester {
 
           if (score < bestScore) {
             bestScore = score;
+
+            // Translate ORIGINAL polygon (without spacing) to the found position
+            const bboxOriginal = geometryService.getBoundingBox(rotatedOriginal);
+            const translatedOriginal = this.translatePolygon(
+              rotatedOriginal,
+              nestPosition.x,
+              nestPosition.y,
+              bboxOriginal
+            );
+
             bestPlacement = {
               id: polygon.id,
-              ...nestPosition,
-              rotation
+              x: nestPosition.x,
+              y: nestPosition.y,
+              rotation,
+              points: translatedOriginal  // Original shape, not offset
             };
           }
         }
@@ -317,6 +348,9 @@ export class GravityNester {
   /**
    * "Drop" polygon using gravity - let it fall down and settle
    * Then slide it left until it touches something
+   *
+   * NOTE: preparedPoints should already have spacing offset applied
+   * We check collision against the placed polygons ALSO with spacing applied
    */
   private gravityDrop(
     preparedPoints: Point[],
@@ -329,6 +363,15 @@ export class GravityNester {
     let x = startX;
     let y = startY;
 
+    // Pre-calculate offset versions of placed polygons for collision detection
+    // (placed polygons are stored WITHOUT spacing offset, so we need to add it for collision checks)
+    const placedWithSpacing = this.placements.map(placed => {
+      if (this.spacing > 0) {
+        return geometryService.offsetPolygon(placed.points, this.spacing / 2);
+      }
+      return placed.points;
+    });
+
     // Phase 1: Drop down until collision or bottom
     while (y <= this.sheetHeight - bbox.height) {
       const translated = this.translatePolygon(preparedPoints, x, y, bbox);
@@ -338,10 +381,10 @@ export class GravityNester {
         break;
       }
 
-      // Check collision with placed polygons
+      // Check collision with placed polygons (WITH spacing)
       let hasCollision = false;
-      for (const placed of this.placements) {
-        if (CollisionDetector.hasCollision(translated, placed.points)) {
+      for (const placedOffset of placedWithSpacing) {
+        if (CollisionDetector.hasCollision(translated, placedOffset)) {
           hasCollision = true;
           break;
         }
@@ -369,10 +412,10 @@ export class GravityNester {
         break;
       }
 
-      // Check collision
+      // Check collision (WITH spacing)
       let hasCollision = false;
-      for (const placed of this.placements) {
-        if (CollisionDetector.hasCollision(translated, placed.points)) {
+      for (const placedOffset of placedWithSpacing) {
+        if (CollisionDetector.hasCollision(translated, placedOffset)) {
           hasCollision = true;
           break;
         }
@@ -397,8 +440,8 @@ export class GravityNester {
       return null;
     }
 
-    for (const placed of this.placements) {
-      if (CollisionDetector.hasCollision(finalTranslated, placed.points)) {
+    for (const placedOffset of placedWithSpacing) {
+      if (CollisionDetector.hasCollision(finalTranslated, placedOffset)) {
         return null;
       }
     }

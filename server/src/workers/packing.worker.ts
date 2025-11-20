@@ -276,10 +276,19 @@ async function performMultiSheetPacking(data: PackingWorkerData) {
     cellsPerInch,
     stepSize,
     rotations,
-    packAllItems = true,
+    packAllItems = false,  // EXPLICIT DEFAULT HERE TOO
     useV2Algorithm,
     useV3Algorithm
   } = data;
+
+  // DEBUG LOGGING
+  console.log(`\n========== WORKER DEBUG ==========`);
+  console.log(`packAllItems from data: ${data.packAllItems}`);
+  console.log(`packAllItems after destructure: ${packAllItems}`);
+  console.log(`useV3Algorithm: ${useV3Algorithm}`);
+  console.log(`pageCount: ${pageCount}`);
+  console.log(`spacing: ${spacing}`);
+  console.log(`==================================\n`);
 
   const algorithm = useV3Algorithm ? 'V3 (Nesting)' : useV2Algorithm ? 'V2 (Bottom-Left)' : 'V1 (Grid)';
   const mode = packAllItems ? 'PACK ALL ITEMS (auto-expand)' : 'FIXED PAGES';
