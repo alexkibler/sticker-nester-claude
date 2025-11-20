@@ -20,16 +20,11 @@ RUN npm run build
 FROM node:20-alpine AS cpp-builder
 WORKDIR /app/server/cpp-packer
 
-# Install C++ build dependencies
-# Note: polyclipping is the Alpine package for the Clipper library
+# Install minimal C++ build dependencies (for stub version)
+# Stub only needs standard library, no external dependencies
 RUN apk add --no-cache \
     build-base \
-    cmake \
-    boost-dev \
-    git \
-    linux-headers \
-    polyclipping-dev \
-    nlohmann-json
+    cmake
 
 # Copy C++ packer source
 COPY server/cpp-packer/ ./
@@ -61,7 +56,7 @@ ENV GIT_BRANCH=${GIT_BRANCH}
 ENV GIT_COMMIT=${GIT_COMMIT}
 ENV BUILD_TIME=${BUILD_TIME}
 
-# Install native dependencies for Sharp image processing and C++ runtime
+# Install native dependencies for Sharp image processing
 RUN apk add --no-cache \
     python3 \
     make \
@@ -71,8 +66,6 @@ RUN apk add --no-cache \
     pango-dev \
     giflib-dev \
     pixman-dev \
-    boost-system \
-    boost-thread \
     libstdc++
 
 # Install production dependencies for backend
