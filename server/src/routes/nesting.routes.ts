@@ -96,7 +96,7 @@ router.post('/nest', async (req: Request, res: Response) => {
       cellsPerInch,              // Grid resolution for polygon packing (optional, derived from preset)
       stepSize,                  // Position search step size for polygon packing (optional, derived from preset)
       rotations,                 // Rotation angles to try in degrees (optional, derived from preset)
-      packAllItems = true,       // Smart packing: true = auto-expand pages, false = fixed pages with fail-fast
+      packAllItems = false,      // Production mode: false = fill requested pages, true = auto-expand to fit all
       socketId = null            // Socket ID for real-time progress updates
     } = req.body;
 

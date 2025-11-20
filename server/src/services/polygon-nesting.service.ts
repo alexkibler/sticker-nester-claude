@@ -418,6 +418,14 @@ export class GravityNester {
 
 /**
  * Multi-sheet nesting with Oversubscribe and Sort strategy
+ *
+ * PRODUCTION MODE (packAllItems=false): Fill exactly the requested pages
+ * - User requests 5 pages → Fill those 5 pages with best selection
+ * - Oversubscribe creates MORE candidates than fit
+ * - Pack what fits best into the REQUESTED pages
+ *
+ * AUTO-EXPAND MODE (packAllItems=true): Add pages until all items fit
+ * - Useful for "pack these specific items, use however many pages needed"
  */
 export class MultiSheetNester {
   static async nestMultiSheet(
@@ -427,7 +435,7 @@ export class MultiSheetNester {
     sheetHeight: number,
     spacing: number = 0.0625,
     rotations: number[] = [0, 90, 180, 270],
-    packAllItems: boolean = true
+    packAllItems: boolean = false  // CHANGED: Default to false for production mode
   ): Promise<{
     sheets: Array<{ sheetIndex: number; placements: NestedPlacement[]; utilization: number }>;
     quantities: { [id: string]: number };
@@ -437,8 +445,10 @@ export class MultiSheetNester {
     console.log(`\n=== Multi-Sheet Polygon Nesting ===`);
     console.log(`Unique designs: ${polygons.length}`);
     console.log(`Requested pages: ${pageCount}`);
+    console.log(`Mode: ${packAllItems ? 'AUTO-EXPAND (pack all)' : 'PRODUCTION (fill requested pages)'}`);
 
     // Step 1: Generate candidate pool (Oversubscribe strategy)
+    // Create MORE candidates than will fit, then pack what fits best
     const targetArea = pageCount * sheetWidth * sheetHeight;
     const buffer = pageCount <= 5 ? 1.15 : 1.10;
     const targetWithBuffer = targetArea * buffer;
@@ -465,67 +475,83 @@ export class MultiSheetNester {
       index++;
     }
 
-    console.log(`Generated ${candidatePool.length} candidates`);
+    console.log(`Generated ${candidatePool.length} candidates (${Math.round(buffer * 100 - 100)}% oversubscribed)`);
 
-    // Step 2: Sort by area descending
+    // Step 2: Sort by area descending (Big Rocks First)
     candidatePool.sort((a, b) => b.area - a.area);
 
-    // Step 3: Pack sheets
-    let currentPageCount = pageCount;
-    const MAX_PAGES = 100;
-    let allPlaced = false;
-    let finalSheets: any[] = [];
-    let finalQuantities: { [id: string]: number } = {};
+    // Step 3: Pack into the REQUESTED number of pages
+    const sheets: any[] = [];
+    let remaining = [...candidatePool];
 
-    while (!allPlaced && currentPageCount <= MAX_PAGES) {
-      const sheets: any[] = [];
-      let remaining = [...candidatePool];
+    for (let sheetIndex = 0; sheetIndex < pageCount && remaining.length > 0; sheetIndex++) {
+      console.log(`\nPacking sheet ${sheetIndex + 1}/${pageCount}...`);
 
-      for (let sheetIndex = 0; sheetIndex < currentPageCount && remaining.length > 0; sheetIndex++) {
-        console.log(`\nPacking sheet ${sheetIndex + 1}/${currentPageCount}...`);
+      const nester = new GravityNester(sheetWidth, sheetHeight, spacing, rotations);
+      const result = await nester.nest(remaining);
+
+      if (result.placements.length === 0) {
+        console.log(`  No items fit on sheet ${sheetIndex + 1}, stopping.`);
+        break;
+      }
+
+      sheets.push({
+        sheetIndex,
+        placements: result.placements,
+        utilization: result.utilization
+      });
+
+      const placedIds = new Set(result.placements.map(p => p.id));
+      remaining = remaining.filter(p => !placedIds.has(p.id));
+
+      console.log(`  Placed ${result.placements.length} items, ${remaining.length} candidates remaining`);
+    }
+
+    // Step 4: If packAllItems=true and candidates remain, add more sheets
+    if (packAllItems && remaining.length > 0) {
+      console.log(`\n⚠ ${remaining.length} candidates remain after ${pageCount} pages. Auto-expanding...`);
+
+      const MAX_PAGES = 100;
+      let additionalSheetIndex = pageCount;
+
+      while (remaining.length > 0 && additionalSheetIndex < MAX_PAGES) {
+        console.log(`\nPacking additional sheet ${additionalSheetIndex + 1}...`);
 
         const nester = new GravityNester(sheetWidth, sheetHeight, spacing, rotations);
         const result = await nester.nest(remaining);
 
-        if (result.placements.length === 0) break;
+        if (result.placements.length === 0) {
+          console.log(`  No more items fit. Stopping at ${sheets.length} sheets.`);
+          break;
+        }
 
         sheets.push({
-          sheetIndex,
+          sheetIndex: additionalSheetIndex,
           placements: result.placements,
           utilization: result.utilization
         });
 
-        // Remove placed items
         const placedIds = new Set(result.placements.map(p => p.id));
         remaining = remaining.filter(p => !placedIds.has(p.id));
-      }
 
-      // Calculate quantities
-      const quantities: { [id: string]: number } = {};
-      sheets.forEach(sheet => {
-        sheet.placements.forEach((p: NestedPlacement) => {
-          const originalId = p.id.replace(/_\d+$/, '');
-          quantities[originalId] = (quantities[originalId] || 0) + 1;
-        });
-      });
-
-      if (remaining.length === 0) {
-        allPlaced = true;
-        finalSheets = sheets;
-        finalQuantities = quantities;
-      } else if (packAllItems && currentPageCount < MAX_PAGES) {
-        currentPageCount++;
-      } else {
-        finalSheets = sheets;
-        finalQuantities = quantities;
-        break;
+        console.log(`  Placed ${result.placements.length} items, ${remaining.length} candidates remaining`);
+        additionalSheetIndex++;
       }
     }
 
+    // Calculate quantities
+    const quantities: { [id: string]: number } = {};
+    sheets.forEach(sheet => {
+      sheet.placements.forEach((p: NestedPlacement) => {
+        const originalId = p.id.replace(/_\d+$/, '');
+        quantities[originalId] = (quantities[originalId] || 0) + 1;
+      });
+    });
+
     // Calculate total utilization
-    const totalArea = sheetWidth * sheetHeight * finalSheets.length;
+    const totalArea = sheetWidth * sheetHeight * sheets.length;
     let usedArea = 0;
-    finalSheets.forEach(sheet => {
+    sheets.forEach(sheet => {
       sheet.placements.forEach((p: NestedPlacement) => {
         const originalId = p.id.replace(/_\d+$/, '');
         const original = polygons.find(poly => poly.id === originalId);
@@ -536,13 +562,23 @@ export class MultiSheetNester {
 
     // Generate message
     let message: string | undefined;
-    if (packAllItems && currentPageCount > pageCount) {
-      message = `Auto-expanded from ${pageCount} to ${currentPageCount} pages`;
+    const totalItemsPlaced = Object.values(quantities).reduce((a, b) => a + b, 0);
+    const totalCandidates = candidatePool.length;
+
+    if (packAllItems && sheets.length > pageCount) {
+      message = `Auto-expanded from ${pageCount} to ${sheets.length} pages to fit all items`;
+    } else if (totalItemsPlaced < totalCandidates) {
+      const unplaced = totalCandidates - totalItemsPlaced;
+      message = `Filled ${pageCount} pages. Placed ${totalItemsPlaced}/${totalCandidates} candidates (${unplaced} didn't fit).`;
     }
 
+    console.log(`\n✓ Packed ${sheets.length} sheets with ${totalItemsPlaced} total items`);
+    console.log(`Quantities:`, quantities);
+    if (message) console.log(`Message: ${message}`);
+
     return {
-      sheets: finalSheets,
-      quantities: finalQuantities,
+      sheets,
+      quantities,
       totalUtilization,
       message
     };
