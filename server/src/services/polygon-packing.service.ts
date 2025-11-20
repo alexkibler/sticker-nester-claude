@@ -12,6 +12,12 @@ export class RasterGrid {
   private readonly gridWidth: number; // in cells
   private readonly gridHeight: number; // in cells
 
+  // Spatial index: track occupancy in coarse blocks for fast region skipping
+  private readonly blockSize: number = 1.0; // 1 inch blocks
+  private readonly blocksWide: number;
+  private readonly blocksHigh: number;
+  private blockOccupancy: number[][]; // Percentage occupied (0-100) per block
+
   constructor(widthInches: number, heightInches: number, cellsPerInch: number = 100) {
     this.width = widthInches;
     this.height = heightInches;
@@ -23,6 +29,13 @@ export class RasterGrid {
     this.grid = Array(this.gridHeight)
       .fill(null)
       .map(() => Array(this.gridWidth).fill(false));
+
+    // Initialize spatial index
+    this.blocksWide = Math.ceil(widthInches / this.blockSize);
+    this.blocksHigh = Math.ceil(heightInches / this.blockSize);
+    this.blockOccupancy = Array(this.blocksHigh)
+      .fill(null)
+      .map(() => Array(this.blocksWide).fill(0));
   }
 
   /**
@@ -57,14 +70,76 @@ export class RasterGrid {
   }
 
   /**
-   * Mark cells as occupied
+   * Mark cells as occupied and update spatial index
    */
   markOccupied(cells: GridCell[]): void {
+    const affectedBlocks = new Set<string>();
+
     for (const cell of cells) {
       if (cell.x >= 0 && cell.x < this.gridWidth && cell.y >= 0 && cell.y < this.gridHeight) {
         this.grid[cell.y][cell.x] = true;
+
+        // Track which blocks are affected
+        const blockX = Math.floor((cell.x / this.cellsPerInch) / this.blockSize);
+        const blockY = Math.floor((cell.y / this.cellsPerInch) / this.blockSize);
+        affectedBlocks.add(`${blockX},${blockY}`);
       }
     }
+
+    // Update occupancy for affected blocks
+    for (const blockKey of affectedBlocks) {
+      const [blockX, blockY] = blockKey.split(',').map(Number);
+      this.updateBlockOccupancy(blockX, blockY);
+    }
+  }
+
+  /**
+   * Update occupancy percentage for a specific block
+   */
+  private updateBlockOccupancy(blockX: number, blockY: number): void {
+    if (blockX < 0 || blockX >= this.blocksWide || blockY < 0 || blockY >= this.blocksHigh) {
+      return;
+    }
+
+    const cellStartX = Math.floor(blockX * this.blockSize * this.cellsPerInch);
+    const cellStartY = Math.floor(blockY * this.blockSize * this.cellsPerInch);
+    const cellEndX = Math.min(cellStartX + Math.floor(this.blockSize * this.cellsPerInch), this.gridWidth);
+    const cellEndY = Math.min(cellStartY + Math.floor(this.blockSize * this.cellsPerInch), this.gridHeight);
+
+    let occupied = 0;
+    let total = 0;
+
+    for (let y = cellStartY; y < cellEndY; y++) {
+      for (let x = cellStartX; x < cellEndX; x++) {
+        total++;
+        if (this.grid[y][x]) occupied++;
+      }
+    }
+
+    this.blockOccupancy[blockY][blockX] = total > 0 ? (occupied / total) * 100 : 0;
+  }
+
+  /**
+   * Check if a region (in inches) overlaps with mostly-full blocks
+   * Returns true if the region has > 70% occupancy on average
+   */
+  isRegionMostlyFull(xInches: number, yInches: number, widthInches: number, heightInches: number): boolean {
+    const blockX1 = Math.floor(xInches / this.blockSize);
+    const blockY1 = Math.floor(yInches / this.blockSize);
+    const blockX2 = Math.floor((xInches + widthInches) / this.blockSize);
+    const blockY2 = Math.floor((yInches + heightInches) / this.blockSize);
+
+    let totalOccupancy = 0;
+    let blockCount = 0;
+
+    for (let by = blockY1; by <= blockY2 && by < this.blocksHigh; by++) {
+      for (let bx = blockX1; bx <= blockX2 && bx < this.blocksWide; bx++) {
+        totalOccupancy += this.blockOccupancy[by][bx];
+        blockCount++;
+      }
+    }
+
+    return blockCount > 0 && (totalOccupancy / blockCount) > 70;
   }
 
   /**
@@ -431,8 +506,10 @@ export class PolygonPacker {
 
   /**
    * Find a valid placement for a polygon
-   * Tries different positions and rotations
-   * Returns detailed information about search attempts
+   * Tries different positions and rotations using optimized search strategies:
+   * 1. Smart starting positions (corners/edges first)
+   * 2. Multi-scale search (coarse grid first, then refine)
+   * 3. Early termination on success
    */
   private findPlacement(
     polygon: PackablePolygon,
@@ -460,30 +537,34 @@ export class PolygonPacker {
         continue; // Skip this rotation, polygon too large
       }
 
-      // Search grid of positions
-      for (let y = 0; y <= gridDims.height - bbox.height; y += this.stepSize) {
-        for (let x = 0; x <= gridDims.width - bbox.width; x += this.stepSize) {
-          positionsTried++;
-
-          // Rasterize polygon at this position and rotation
-          const cells = this.rasterizer.rasterizePolygon(polygon.points, x, y, rotation, this.spacing);
-
-          // Check collision
-          if (!this.grid.checkCollision(cells)) {
-            // Found valid placement!
-            return {
-              placement: {
-                id: polygon.id,
-                x,
-                y,
-                rotation,
-                cells,
-              },
-              positionsTried,
-            };
-          }
+      // OPTIMIZATION 1: Try smart starting positions first (corners and edges)
+      const smartPositions = this.getSmartStartingPositions(bbox, gridDims);
+      for (const pos of smartPositions) {
+        positionsTried++;
+        const cells = this.rasterizer.rasterizePolygon(polygon.points, pos.x, pos.y, rotation, this.spacing);
+        if (!this.grid.checkCollision(cells)) {
+          return {
+            placement: { id: polygon.id, x: pos.x, y: pos.y, rotation, cells },
+            positionsTried,
+          };
         }
       }
+
+      // OPTIMIZATION 2: Multi-scale search - coarse grid first
+      const coarseStep = Math.max(this.stepSize * 10, 0.5); // 0.5" or 10x step size
+      const result = this.searchGridMultiScale(
+        polygon,
+        rotation,
+        bbox,
+        gridDims,
+        coarseStep,
+        positionsTried
+      );
+
+      if (result.placement) {
+        return result;
+      }
+      positionsTried = result.positionsTried;
     }
 
     // No valid placement found - determine reason
@@ -511,6 +592,162 @@ export class PolygonPacker {
         reason,
       },
     };
+  }
+
+  /**
+   * Get smart starting positions to try first
+   * Prioritizes corners and edges where shapes often fit well
+   */
+  private getSmartStartingPositions(
+    bbox: { width: number; height: number },
+    gridDims: { width: number; height: number }
+  ): { x: number; y: number }[] {
+    const positions: { x: number; y: number }[] = [];
+    const maxX = gridDims.width - bbox.width;
+    const maxY = gridDims.height - bbox.height;
+
+    // 4 corners (highest priority - shapes often fit in corners)
+    positions.push({ x: 0, y: 0 }); // Top-left
+    positions.push({ x: maxX, y: 0 }); // Top-right
+    positions.push({ x: 0, y: maxY }); // Bottom-left
+    positions.push({ x: maxX, y: maxY }); // Bottom-right
+
+    // Edges (medium priority)
+    const edgeStep = Math.max(bbox.width, bbox.height, 1); // Sample every ~polygon-size
+
+    // Top edge
+    for (let x = edgeStep; x < maxX; x += edgeStep) {
+      positions.push({ x, y: 0 });
+    }
+
+    // Left edge
+    for (let y = edgeStep; y < maxY; y += edgeStep) {
+      positions.push({ x: 0, y });
+    }
+
+    // Bottom edge
+    for (let x = edgeStep; x < maxX; x += edgeStep) {
+      positions.push({ x, y: maxY });
+    }
+
+    // Right edge
+    for (let y = edgeStep; y < maxY; y += edgeStep) {
+      positions.push({ x: maxX, y });
+    }
+
+    return positions;
+  }
+
+  /**
+   * Multi-scale grid search: try coarse positions first, then refine around promising areas
+   * Uses spatial indexing to skip regions that are mostly full
+   * This dramatically reduces the number of positions we need to test
+   */
+  private searchGridMultiScale(
+    polygon: PackablePolygon,
+    rotation: number,
+    bbox: { width: number; height: number },
+    gridDims: { width: number; height: number },
+    coarseStep: number,
+    initialPositionsTried: number
+  ): {
+    placement: PolygonPlacement | null;
+    positionsTried: number;
+  } {
+    let positionsTried = initialPositionsTried;
+    const maxX = gridDims.width - bbox.width;
+    const maxY = gridDims.height - bbox.height;
+
+    // Phase 1: Coarse search (0.5" steps) with spatial index pruning
+    for (let y = 0; y <= maxY; y += coarseStep) {
+      for (let x = 0; x <= maxX; x += coarseStep) {
+        // OPTIMIZATION: Skip this position if spatial index indicates region is mostly full
+        if (this.grid.isRegionMostlyFull(x, y, bbox.width, bbox.height)) {
+          continue; // Skip expensive rasterization
+        }
+
+        positionsTried++;
+        const cells = this.rasterizer.rasterizePolygon(polygon.points, x, y, rotation, this.spacing);
+
+        if (!this.grid.checkCollision(cells)) {
+          // Found valid position at coarse resolution
+          // Try to refine it for better placement
+          const refined = this.refinePosition(polygon, rotation, x, y, this.stepSize, bbox, gridDims);
+          positionsTried += refined.positionsTried;
+
+          return {
+            placement: refined.placement || {
+              id: polygon.id,
+              x,
+              y,
+              rotation,
+              cells,
+            },
+            positionsTried,
+          };
+        }
+      }
+    }
+
+    return { placement: null, positionsTried };
+  }
+
+  /**
+   * Refine a coarse position by searching nearby fine positions
+   * Try to move the shape closer to the origin or edges for better packing
+   */
+  private refinePosition(
+    polygon: PackablePolygon,
+    rotation: number,
+    coarseX: number,
+    coarseY: number,
+    fineStep: number,
+    bbox: { width: number; height: number },
+    gridDims: { width: number; height: number }
+  ): {
+    placement: PolygonPlacement | null;
+    positionsTried: number;
+  } {
+    let positionsTried = 0;
+    const searchRadius = fineStep * 5; // Search within 5 fine steps
+
+    // Try positions closer to origin first (better packing density)
+    const refinedPositions: { x: number; y: number; priority: number }[] = [];
+
+    for (let dy = -searchRadius; dy <= searchRadius; dy += fineStep) {
+      for (let dx = -searchRadius; dx <= searchRadius; dx += fineStep) {
+        const x = Math.max(0, Math.min(coarseX + dx, gridDims.width - bbox.width));
+        const y = Math.max(0, Math.min(coarseY + dy, gridDims.height - bbox.height));
+
+        // Prioritize positions closer to origin (0,0)
+        const priority = x * x + y * y;
+        refinedPositions.push({ x, y, priority });
+      }
+    }
+
+    // Sort by priority (closest to origin first)
+    refinedPositions.sort((a, b) => a.priority - b.priority);
+
+    // Try refined positions
+    for (const pos of refinedPositions) {
+      positionsTried++;
+      const cells = this.rasterizer.rasterizePolygon(polygon.points, pos.x, pos.y, rotation, this.spacing);
+
+      if (!this.grid.checkCollision(cells)) {
+        return {
+          placement: {
+            id: polygon.id,
+            x: pos.x,
+            y: pos.y,
+            rotation,
+            cells,
+          },
+          positionsTried,
+        };
+      }
+    }
+
+    return { placement: null, positionsTried };
   }
 
   /**
