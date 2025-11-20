@@ -90,7 +90,8 @@ router.post('/nest', async (req: Request, res: Response) => {
       productionMode,
       sheetCount,
       usePolygonPacking = false, // New parameter: use polygon packing instead of rectangle packing
-      useV2Algorithm = true,     // Use new V2 algorithm (Bottom-Left, no grid rasterization) - default true
+      useV2Algorithm = false,    // Use V2 algorithm (Bottom-Left, deprecated)
+      useV3Algorithm = true,     // Use V3 algorithm (TRUE NESTING with gravity) - DEFAULT
       rotationPreset,            // Rotation preset: '90', '45', '15', '10', '5' (optional)
       cellsPerInch,              // Grid resolution for polygon packing (optional, derived from preset)
       stepSize,                  // Position search step size for polygon packing (optional, derived from preset)
@@ -170,7 +171,8 @@ router.post('/nest', async (req: Request, res: Response) => {
           rotations: finalRotations,
           pageCount: sheetCount,
           packAllItems,
-          useV2Algorithm
+          useV2Algorithm,
+          useV3Algorithm
         },
         {
           onProgress: (progress) => {

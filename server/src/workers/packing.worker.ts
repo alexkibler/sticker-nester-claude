@@ -15,6 +15,11 @@ import {
   PackablePolygon as PackablePolygonV2,
   PackingConfig
 } from '../services/polygon-packing-v2.service';
+import {
+  GravityNester,
+  MultiSheetNester,
+  NestablePolygon
+} from '../services/polygon-nesting.service';
 
 export interface PackingWorkerData {
   type: 'single-sheet' | 'multi-sheet';
@@ -32,7 +37,8 @@ export interface PackingWorkerData {
   rotations: number[];
   pageCount?: number; // For multi-sheet
   packAllItems?: boolean; // For multi-sheet
-  useV2Algorithm?: boolean; // Use new Bottom-Left algorithm (default: false for backward compatibility)
+  useV2Algorithm?: boolean; // Use Bottom-Left algorithm (deprecated)
+  useV3Algorithm?: boolean; // Use true nesting with gravity (NEW - default: true)
 }
 
 export interface PackingWorkerProgress {
@@ -95,11 +101,12 @@ function sendMessage(message: PackingWorkerMessage) {
 }
 
 async function performSingleSheetPacking(data: PackingWorkerData) {
-  const { stickers, sheetWidth, sheetHeight, spacing, cellsPerInch, stepSize, rotations, useV2Algorithm } = data;
+  const { stickers, sheetWidth, sheetHeight, spacing, cellsPerInch, stepSize, rotations, useV2Algorithm, useV3Algorithm } = data;
 
+  const algorithm = useV3Algorithm ? 'V3 (Nesting)' : useV2Algorithm ? 'V2 (Bottom-Left)' : 'V1 (Grid)';
   sendMessage({
     type: 'progress',
-    message: `Starting polygon packing (${useV2Algorithm ? 'V2' : 'V1'})...`,
+    message: `Starting polygon packing (${algorithm})...`,
     percentComplete: 0
   });
 
@@ -137,7 +144,16 @@ async function performSingleSheetPacking(data: PackingWorkerData) {
 
   let result: any;
 
-  if (useV2Algorithm) {
+  if (useV3Algorithm) {
+    // Use new V3 algorithm (Gravity-based true nesting)
+    const nester = new GravityNester(
+      sheetWidthInches,
+      sheetHeightInches,
+      spacingInches,
+      rotations
+    );
+    result = await nester.nest(polygons);
+  } else if (useV2Algorithm) {
     // Use new V2 algorithm (Bottom-Left, no rasterization)
     const config: PackingConfig = {
       sheetWidth: sheetWidthInches,
@@ -261,13 +277,15 @@ async function performMultiSheetPacking(data: PackingWorkerData) {
     stepSize,
     rotations,
     packAllItems = true,
-    useV2Algorithm
+    useV2Algorithm,
+    useV3Algorithm
   } = data;
 
+  const algorithm = useV3Algorithm ? 'V3 (Nesting)' : useV2Algorithm ? 'V2 (Bottom-Left)' : 'V1 (Grid)';
   const mode = packAllItems ? 'PACK ALL ITEMS (auto-expand)' : 'FIXED PAGES';
   sendMessage({
     type: 'progress',
-    message: `Starting multi-sheet polygon packing (${useV2Algorithm ? 'V2' : 'V1'}): ${mode}`,
+    message: `Starting multi-sheet polygon packing (${algorithm}): ${mode}`,
     totalItems: stickers.length,
     itemsPlaced: 0,
     percentComplete: 0
@@ -299,11 +317,59 @@ async function performMultiSheetPacking(data: PackingWorkerData) {
     };
   });
 
-  // Use V2 algorithm (new Bottom-Left multi-sheet)
+  // Use V3 algorithm (true nesting with gravity)
+  if (useV3Algorithm) {
+    sendMessage({
+      type: 'progress',
+      message: 'Using gravity-based nesting...',
+      percentComplete: 5
+    });
+
+    const result = await MultiSheetNester.nestMultiSheet(
+      polygons,
+      pageCount,
+      sheetWidthInches,
+      sheetHeightInches,
+      spacingInches,
+      rotations,
+      packAllItems
+    );
+
+    // Convert back to mm
+    const sheetsInMM = result.sheets.map(sheet => ({
+      ...sheet,
+      placements: sheet.placements.map(p => ({
+        id: p.id,
+        x: p.x * MM_PER_INCH,
+        y: p.y * MM_PER_INCH,
+        rotation: p.rotation
+      }))
+    }));
+
+    sendMessage({
+      type: 'progress',
+      message: 'Complete!',
+      percentComplete: 100
+    });
+
+    sendMessage({
+      type: 'result',
+      result: {
+        sheets: sheetsInMM,
+        totalUtilization: result.totalUtilization,
+        quantities: result.quantities,
+        message: result.message
+      }
+    });
+
+    return; // Exit early - V3 algorithm complete
+  }
+
+  // Use V2 algorithm (Bottom-Left multi-sheet)
   if (useV2Algorithm) {
     sendMessage({
       type: 'progress',
-      message: 'Using new V2 multi-sheet algorithm...',
+      message: 'Using Bottom-Left algorithm...',
       percentComplete: 5
     });
 
