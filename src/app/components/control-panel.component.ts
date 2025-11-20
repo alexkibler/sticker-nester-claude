@@ -83,6 +83,25 @@ import {
           </small>
         </div>
 
+        <!-- Rotation Granularity (only shown when polygon packing is enabled) -->
+        <div class="form-group" *ngIf="config.usePolygonPacking">
+          <label>Rotation Granularity:</label>
+          <select
+            [(ngModel)]="config.rotationPreset"
+            (change)="onRotationPresetChange()"
+            class="rotation-preset-select"
+          >
+            <option value="90">90° Only (Fast)</option>
+            <option value="45">45° Steps (Balanced)</option>
+            <option value="15">15° Steps (Recommended)</option>
+            <option value="10">10° Steps (High Quality)</option>
+            <option value="5">5° Steps (Maximum Quality)</option>
+          </select>
+          <small class="help-text">
+            {{ getRotationPresetDescription() }}
+          </small>
+        </div>
+
         <!-- Number of Sheets -->
         <div class="form-group" *ngIf="config.productionMode">
           <label>Number of Sheets:</label>
@@ -354,6 +373,17 @@ import {
       font-weight: 500;
     }
 
+    .rotation-preset-select {
+      font-weight: 500;
+      background-color: #f0f8ff;
+      border: 1px solid #4CAF50;
+    }
+
+    .rotation-preset-select:focus {
+      border-color: #45a049;
+      background-color: #e8f5e9;
+    }
+
     /* Max dimension highlight */
     .max-dimension-highlight {
       padding: 12px;
@@ -496,8 +526,9 @@ export class ControlPanelComponent implements OnInit {
     maxDimensionMM: 76.2,    // 3" in mm - max dimension for ALL stickers
     unit: 'inches' as 'inches' | 'mm',  // User's preferred unit
     usePolygonPacking: false,  // Use polygon-based packing instead of rectangle packing
-    cellsPerInch: 100,         // Grid resolution for polygon packing
-    stepSize: 0.05             // Position search step size for polygon packing (inches)
+    rotationPreset: '15',      // Rotation granularity: '90', '45', '15', '10', '5'
+    cellsPerInch: 50,          // Grid resolution for polygon packing (default from 15° preset)
+    stepSize: 0.1              // Position search step size for polygon packing in inches (default from 15° preset)
   };
 
   // Sheet size state
@@ -685,6 +716,60 @@ export class ControlPanelComponent implements OnInit {
   }
 
   /**
+   * Handle rotation preset change
+   * Updates cellsPerInch and stepSize based on selected preset
+   */
+  onRotationPresetChange(): void {
+    // Update optimized parameters based on preset
+    switch (this.config.rotationPreset) {
+      case '90':
+        this.config.cellsPerInch = 100;
+        this.config.stepSize = 0.05;
+        break;
+      case '45':
+        this.config.cellsPerInch = 75;
+        this.config.stepSize = 0.075;
+        break;
+      case '15':
+        this.config.cellsPerInch = 50;
+        this.config.stepSize = 0.1;
+        break;
+      case '10':
+        this.config.cellsPerInch = 50;
+        this.config.stepSize = 0.1;
+        break;
+      case '5':
+        this.config.cellsPerInch = 40;
+        this.config.stepSize = 0.15;
+        break;
+      default:
+        this.config.cellsPerInch = 50;
+        this.config.stepSize = 0.1;
+    }
+    this.emitConfig();
+  }
+
+  /**
+   * Get description for selected rotation preset
+   */
+  getRotationPresetDescription(): string {
+    switch (this.config.rotationPreset) {
+      case '90':
+        return '4 rotations (0°, 90°, 180°, 270°). Fastest, best for rectangular stickers.';
+      case '45':
+        return '8 rotations. Good for diagonal shapes, 1.5x slower.';
+      case '15':
+        return '24 rotations. Best balance of quality and speed. Often faster than 90° preset!';
+      case '10':
+        return '36 rotations. High quality for complex shapes, ~2-3x slower.';
+      case '5':
+        return '72 rotations. Maximum quality, ~4x slower. Best for expensive materials.';
+      default:
+        return '';
+    }
+  }
+
+  /**
    * Emit configuration to parent component
    */
   private emitConfig(): void {
@@ -698,6 +783,7 @@ export class ControlPanelComponent implements OnInit {
       maxDimensionMM: this.config.maxDimensionMM,
       unit: this.config.unit,
       usePolygonPacking: this.config.usePolygonPacking,
+      rotationPreset: this.config.rotationPreset,
       cellsPerInch: this.config.cellsPerInch,
       stepSize: this.config.stepSize
     });

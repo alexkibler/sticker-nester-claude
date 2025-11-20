@@ -90,12 +90,52 @@ router.post('/nest', async (req: Request, res: Response) => {
       productionMode,
       sheetCount,
       usePolygonPacking = false, // New parameter: use polygon packing instead of rectangle packing
-      cellsPerInch = 100,         // Grid resolution for polygon packing
-      stepSize = 0.05,            // Position search step size for polygon packing
-      rotations = [0, 90, 180, 270], // Rotation angles to try (in degrees)
-      packAllItems = true,        // Smart packing: true = auto-expand pages, false = fixed pages with fail-fast
-      socketId = null             // Socket ID for real-time progress updates
+      rotationPreset,            // Rotation preset: '90', '45', '15', '10', '5' (optional)
+      cellsPerInch,              // Grid resolution for polygon packing (optional, derived from preset)
+      stepSize,                  // Position search step size for polygon packing (optional, derived from preset)
+      rotations,                 // Rotation angles to try in degrees (optional, derived from preset)
+      packAllItems = true,       // Smart packing: true = auto-expand pages, false = fixed pages with fail-fast
+      socketId = null            // Socket ID for real-time progress updates
     } = req.body;
+
+    // Convert rotationPreset to actual parameters if provided
+    let finalRotations = rotations || [0, 90, 180, 270];
+    let finalCellsPerInch = cellsPerInch || 100;
+    let finalStepSize = stepSize || 0.05;
+
+    if (rotationPreset) {
+      // Map preset to optimized parameters
+      switch (rotationPreset) {
+        case '90':
+          finalRotations = [0, 90, 180, 270];
+          finalCellsPerInch = 100;
+          finalStepSize = 0.05;
+          break;
+        case '45':
+          finalRotations = [0, 45, 90, 135, 180, 225, 270, 315];
+          finalCellsPerInch = 75;
+          finalStepSize = 0.075;
+          break;
+        case '15':
+          finalRotations = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345];
+          finalCellsPerInch = 50;
+          finalStepSize = 0.1;
+          break;
+        case '10':
+          finalRotations = Array.from({ length: 36 }, (_, i) => i * 10);
+          finalCellsPerInch = 50;
+          finalStepSize = 0.1;
+          break;
+        case '5':
+          finalRotations = Array.from({ length: 72 }, (_, i) => i * 5);
+          finalCellsPerInch = 40;
+          finalStepSize = 0.15;
+          break;
+        default:
+          // Use provided rotations or default
+          break;
+      }
+    }
 
     if (!stickers || stickers.length === 0 || !sheetWidth || !sheetHeight) {
       return res.status(400).json({ error: 'Missing required parameters' });
@@ -124,9 +164,9 @@ router.post('/nest', async (req: Request, res: Response) => {
           sheetWidth,
           sheetHeight,
           spacing: finalSpacing,
-          cellsPerInch,
-          stepSize,
-          rotations,
+          cellsPerInch: finalCellsPerInch,
+          stepSize: finalStepSize,
+          rotations: finalRotations,
           pageCount: sheetCount,
           packAllItems
         },

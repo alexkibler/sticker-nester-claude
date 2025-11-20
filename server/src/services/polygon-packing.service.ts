@@ -324,6 +324,26 @@ export interface PolygonPackingResult {
   placements: PolygonPlacement[];
   utilization: number;
   unplacedPolygons: PackablePolygon[];
+  performance?: PackingPerformanceMetrics;
+}
+
+/**
+ * Performance metrics for packing operations
+ */
+export interface PackingPerformanceMetrics {
+  totalTimeMs: number;
+  totalTimeSec: number;
+  itemCount: number;
+  avgTimePerItemMs: number;
+  totalPositionsTried: number;
+  totalRotationsTried: number;
+  successfulPlacements: number;
+  failedPlacements: number;
+  rotationCount: number;
+  stepSize: number;
+  cellsPerInch: number;
+  gridWidth: number;
+  gridHeight: number;
 }
 
 /**
@@ -395,7 +415,7 @@ export class PolygonPacker {
   /**
    * Pack polygons onto the sheet using rasterization overlay algorithm
    */
-  async pack(polygons: PackablePolygon[]): Promise<PolygonPackingResult> {
+  async pack(polygons: PackablePolygon[], trackPerformance: boolean = false): Promise<PolygonPackingResult> {
     console.log(`\n=== Starting polygon packing ===`);
     console.log(`Polygons: ${polygons.length}`);
     console.log(`Rotations: ${this.rotations.join(', ')}°`);
@@ -411,6 +431,10 @@ export class PolygonPacker {
 
     const gridDims = this.grid.getDimensions();
     const startTime = Date.now();
+
+    // Performance tracking
+    let totalPositionsTried = 0;
+    let totalRotationsTried = 0;
 
     // Try to place each polygon
     for (let i = 0; i < sorted.length; i++) {
@@ -436,6 +460,12 @@ export class PolygonPacker {
       const result = this.findPlacement(polygon, gridDims);
 
       const itemTime = Date.now() - itemStartTime;
+
+      // Track performance
+      totalPositionsTried += result.positionsTried;
+      if (result.failure) {
+        totalRotationsTried += result.failure.rotationsTried;
+      }
 
       if (result.placement) {
         placements.push(result.placement);
@@ -497,10 +527,31 @@ export class PolygonPacker {
       });
     }
 
+    // Build performance metrics if requested
+    let performanceMetrics: PackingPerformanceMetrics | undefined;
+    if (trackPerformance) {
+      performanceMetrics = {
+        totalTimeMs: totalTime,
+        totalTimeSec: totalTime / 1000,
+        itemCount: polygons.length,
+        avgTimePerItemMs: totalTime / polygons.length,
+        totalPositionsTried,
+        totalRotationsTried,
+        successfulPlacements: placements.length,
+        failedPlacements: unplaced.length,
+        rotationCount: this.rotations.length,
+        stepSize: this.stepSize,
+        cellsPerInch: gridDims.cellsPerInch,
+        gridWidth: gridDims.width,
+        gridHeight: gridDims.height,
+      };
+    }
+
     return {
       placements,
       utilization,
       unplacedPolygons: unplaced,
+      performance: performanceMetrics,
     };
   }
 
