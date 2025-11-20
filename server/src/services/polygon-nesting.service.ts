@@ -318,28 +318,44 @@ export class GravityNester {
 
   /**
    * Generate candidate starting positions for gravity drop
-   * Positions around the perimeter of already-placed polygons
+   * Focus on positions NEAR already-placed shapes for nesting
    */
   private generateCandidatePositions(bbox: any): Array<{x: number, y: number}> {
     const positions: Array<{x: number, y: number}> = [];
 
-    // Top edge - drop from above
-    const step = Math.max(bbox.width, 0.5);
-    for (let x = 0; x <= this.sheetWidth - bbox.width; x += step) {
-      positions.push({ x, y: 0 });
+    if (this.placements.length === 0) {
+      // First shape - just try origin
+      positions.push({ x: 0, y: 0 });
+      return positions;
     }
 
-    // Around placed polygon perimeters
+    // Try positions AROUND and NEAR each placed shape (for nesting)
+    const step = 0.1; // 0.1 inch steps
+
     for (const placement of this.placements) {
       const placedBbox = geometryService.getBoundingBox(placement.points);
 
-      // Try positions around this placed polygon
-      positions.push(
-        { x: placedBbox.maxX, y: placedBbox.minY },  // Right edge
-        { x: placedBbox.minX - bbox.width, y: placedBbox.minY }, // Left edge
-        { x: placedBbox.minX, y: placedBbox.maxY }, // Below
-        { x: placedBbox.minX, y: placedBbox.minY - bbox.height } // Above
-      );
+      // Dense grid AROUND this shape (enables nestling into concave regions)
+      const searchRadius = Math.max(bbox.width, bbox.height, 1.0);
+
+      for (let dy = -searchRadius; dy <= placedBbox.height + searchRadius; dy += step) {
+        for (let dx = -searchRadius; dx <= placedBbox.width + searchRadius; dx += step) {
+          const x = placedBbox.minX + dx;
+          const y = placedBbox.minY + dy;
+
+          // Only add if within sheet bounds
+          if (x >= 0 && x <= this.sheetWidth - bbox.width &&
+              y >= 0 && y <= this.sheetHeight - bbox.height) {
+            positions.push({ x, y });
+          }
+        }
+      }
+    }
+
+    // Also try a coarse scan of the TOP of the sheet (for new rows)
+    const coarseStep = Math.max(bbox.width / 2, 0.5);
+    for (let x = 0; x <= this.sheetWidth - bbox.width; x += coarseStep) {
+      positions.push({ x, y: 0 });
     }
 
     return positions;
@@ -359,7 +375,7 @@ export class GravityNester {
     startY: number,
     rotation: number
   ): { x: number, y: number, points: Point[] } | null {
-    const slideStep = 0.05; // 0.05 inch steps
+    const slideStep = 0.02; // FINE 0.02 inch steps for tight nesting
     let x = startX;
     let y = startY;
 
