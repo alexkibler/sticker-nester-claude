@@ -285,6 +285,33 @@ export class App implements OnInit, OnDestroy {
   private updateNestingProgress(progress: any): void {
     this.nestingProgress = progress.percentComplete || 0;
     this.nestingMessage = progress.message || 'Processing...';
+
+    // Handle real-time placement updates
+    if (progress.placement) {
+      const { sheetIndex, id, x, y, rotation } = progress.placement;
+
+      // Initialize sheets array if needed
+      if (this.sheets.length === 0 || !this.sheets[sheetIndex]) {
+        // Ensure we have enough sheets
+        while (this.sheets.length <= sheetIndex) {
+          this.sheets.push({
+            sheetIndex: this.sheets.length,
+            placements: [],
+            utilization: 0
+          });
+        }
+      }
+
+      // Add placement to the appropriate sheet
+      this.sheets[sheetIndex].placements.push({ id, x, y, rotation });
+
+      // Update first sheet's placements for single-sheet preview compatibility
+      if (this.sheets.length > 0) {
+        this.placements = this.sheets[0].placements;
+      }
+
+      console.log(`[Real-time] Placed ${id} on sheet ${sheetIndex + 1} at (${x.toFixed(1)}, ${y.toFixed(1)})`);
+    }
   }
 
   /**

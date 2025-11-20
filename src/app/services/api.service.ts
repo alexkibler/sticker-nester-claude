@@ -63,6 +63,14 @@ export interface NestingProgress {
   itemsPlaced?: number;
   totalItems?: number;
   percentComplete?: number;
+  // Real-time placement data
+  placement?: {
+    sheetIndex: number;
+    id: string;
+    x: number;
+    y: number;
+    rotation: number;
+  };
 }
 
 /**

@@ -36,6 +36,14 @@ export interface PackingWorkerProgress {
   itemsPlaced?: number;
   totalItems?: number;
   percentComplete?: number;
+  // Real-time placement data
+  placement?: {
+    sheetIndex: number;
+    id: string;
+    x: number;
+    y: number;
+    rotation: number;
+  };
 }
 
 export interface PackingWorkerResult {
@@ -277,13 +285,33 @@ function performMultiSheetPacking(data: PackingWorkerData) {
         break;
       }
 
-      // Convert placements (inches → mm)
+      // Convert placements (inches → mm) and emit real-time updates
       const placements = result.placements.map(p => ({
         id: p.id,
         x: p.x * MM_PER_INCH,
         y: p.y * MM_PER_INCH,
         rotation: p.rotation,
       }));
+
+      // Send each placement as a real-time update
+      placements.forEach((placement, index) => {
+        sendMessage({
+          type: 'progress',
+          message: `Placed ${placement.id.split('_')[0]} on sheet ${sheetIndex + 1}`,
+          currentSheet: sheetIndex + 1,
+          totalSheets: currentPageCount,
+          itemsPlaced: polygons.length - remainingPolygons.length + index + 1,
+          totalItems: polygons.length,
+          percentComplete: sheetProgress,
+          placement: {
+            sheetIndex,
+            id: placement.id,
+            x: placement.x,
+            y: placement.y,
+            rotation: placement.rotation
+          }
+        });
+      });
 
       // Calculate utilization
       const usedAreaInches = result.placements.reduce((sum, p) => {
