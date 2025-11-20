@@ -5,13 +5,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Optimization flags
+# Optimization flags (removed -march=native for multi-platform compatibility)
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     if(MSVC)
         add_compile_options(/O2 /Ob2 /Oi /Ot)
     else()
-        add_compile_options(-O3 -march=native -flto)
-        add_link_options(-flto)
+        add_compile_options(-O3)
     endif()
 endif()
 
