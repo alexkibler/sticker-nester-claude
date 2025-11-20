@@ -32,20 +32,22 @@ export class WorkerManagerService {
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       // Determine worker script path
-      // In development: use TypeScript file with ts-node
-      // In production: use compiled JavaScript file
-      const workerPath = process.env.NODE_ENV === 'production'
+      // If we're running from the 'dist' folder (compiled), use .js
+      // Otherwise use .ts with ts-node
+      const isCompiled = __dirname.includes('/dist/');
+      const workerPath = isCompiled
         ? path.join(__dirname, '../workers/packing.worker.js')
         : path.join(__dirname, '../workers/packing.worker.ts');
 
       console.log(`[WorkerManager] Starting worker for job ${jobId}`);
+      console.log(`[WorkerManager] Compiled mode: ${isCompiled}`);
       console.log(`[WorkerManager] Worker path: ${workerPath}`);
 
       // Spawn worker
       const worker = new Worker(workerPath, {
         workerData: data,
-        // Use ts-node for TypeScript workers in development
-        execArgv: process.env.NODE_ENV === 'production' ? [] : ['-r', 'ts-node/register']
+        // Use ts-node for TypeScript workers in development only
+        execArgv: isCompiled ? [] : ['-r', 'ts-node/register']
       });
 
       this.activeWorkers.set(jobId, worker);

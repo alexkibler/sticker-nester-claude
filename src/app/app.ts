@@ -226,7 +226,10 @@ export class App implements OnInit, OnDestroy {
         sheetCount: this.config.sheetCount,
         usePolygonPacking: this.config.usePolygonPacking,
         cellsPerInch: this.config.cellsPerInch,
-        stepSize: this.config.stepSize
+        stepSize: this.config.stepSize,
+        // For polygon packing: packAllItems=true means fill ALL stickers, auto-expand pages
+        // For rectangle packing: uses quantities instead
+        packAllItems: this.config.productionMode ? true : false
       };
 
       // Add quantities for production mode

@@ -27,6 +27,7 @@ export interface NestingApiRequest {
   usePolygonPacking?: boolean;
   cellsPerInch?: number;
   stepSize?: number;
+  packAllItems?: boolean;  // For polygon packing: true = pack all items (auto-expand pages)
 }
 
 export interface SheetPlacement {
@@ -216,6 +217,17 @@ export class ApiService {
   async nestStickers(request: NestingApiRequest): Promise<NestingApiResponse> {
     // Include socket ID if connected and using polygon packing
     const socketId = this.socket?.connected ? this.socket.id : null;
+
+    // Warn if using polygon packing without socket connection
+    if (request.usePolygonPacking && !socketId) {
+      console.warn('[API] Polygon packing requested but socket not connected. Progress updates will not be available.');
+      console.warn('[API] Socket status:', {
+        exists: !!this.socket,
+        connected: this.socket?.connected,
+        id: this.socket?.id
+      });
+    }
+
     const requestWithSocket = {
       ...request,
       socketId: request.usePolygonPacking ? socketId : null
