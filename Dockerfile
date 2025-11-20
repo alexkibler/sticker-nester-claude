@@ -21,12 +21,15 @@ FROM node:20-alpine AS cpp-builder
 WORKDIR /app/server/cpp-packer
 
 # Install C++ build dependencies
+# Note: polyclipping is the Alpine package for the Clipper library
 RUN apk add --no-cache \
     build-base \
     cmake \
     boost-dev \
     git \
-    linux-headers
+    linux-headers \
+    polyclipping-dev \
+    nlohmann-json
 
 # Copy C++ packer source
 COPY server/cpp-packer/ ./
@@ -81,7 +84,7 @@ COPY --from=backend-builder /app/server/dist ./dist
 
 # Copy built C++ packer binary (if it exists)
 RUN mkdir -p ./cpp-packer/bin
-COPY --from=cpp-builder /app/server/cpp-packer/bin/ ./cpp-packer/bin/ || true
+COPY --from=cpp-builder /app/server/cpp-packer/bin/ ./cpp-packer/bin/
 RUN if [ -f ./cpp-packer/bin/nest-packer ]; then \
         chmod +x ./cpp-packer/bin/nest-packer && \
         echo "✓ C++ packer available"; \
