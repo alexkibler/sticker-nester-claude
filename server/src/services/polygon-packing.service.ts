@@ -261,6 +261,7 @@ export interface PackingProgress {
   status: 'trying' | 'placed' | 'failed' | 'estimating' | 'warning' | 'expanding';
   message: string;
   sheetCount?: number; // Current number of sheets being used
+  placement?: PolygonPlacement; // The actual placement (for status='placed')
 }
 
 export type ProgressCallback = (progress: PackingProgress) => void;
@@ -373,6 +374,7 @@ export class PolygonPacker {
             itemId: polygon.id,
             status: 'placed',
             message: `Placed ${polygon.id} at (${result.placement.x.toFixed(2)}, ${result.placement.y.toFixed(2)})`,
+            placement: result.placement,
           });
         }
       } else {

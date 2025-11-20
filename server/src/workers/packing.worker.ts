@@ -126,8 +126,34 @@ function performSingleSheetPacking(data: PackingWorkerData) {
     percentComplete: 25
   });
 
-  // Create packer and pack polygons
-  const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize, rotations);
+  // Create packer with real-time progress callback
+  const packer = new PolygonPacker(
+    sheetWidthInches,
+    sheetHeightInches,
+    spacingInches,
+    cellsPerInch,
+    stepSize,
+    rotations,
+    (progress) => {
+      // Send real-time placement updates
+      if (progress.status === 'placed' && progress.placement) {
+        sendMessage({
+          type: 'progress',
+          message: `Placed ${progress.itemId}`,
+          itemsPlaced: progress.current,
+          totalItems: progress.total,
+          percentComplete: 25 + Math.floor((progress.current / progress.total) * 50),
+          placement: {
+            sheetIndex: 0,
+            id: progress.placement.id,
+            x: progress.placement.x * MM_PER_INCH,
+            y: progress.placement.y * MM_PER_INCH,
+            rotation: progress.placement.rotation
+          }
+        });
+      }
+    }
+  );
   const result = packer.pack(polygons);
 
   sendMessage({
@@ -281,40 +307,50 @@ function performMultiSheetPacking(data: PackingWorkerData) {
         percentComplete: sheetProgress
       });
 
-      const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize, rotations);
+      // Set up real-time progress callback
+      const packer = new PolygonPacker(
+        sheetWidthInches,
+        sheetHeightInches,
+        spacingInches,
+        cellsPerInch,
+        stepSize,
+        rotations,
+        (progress) => {
+          // Only send placement events (not "trying" or "failed")
+          if (progress.status === 'placed' && progress.placement) {
+            sendMessage({
+              type: 'progress',
+              message: `Placed ${progress.itemId.split('_')[0]} on sheet ${sheetIndex + 1}`,
+              currentSheet: sheetIndex + 1,
+              totalSheets: currentPageCount,
+              itemsPlaced: polygons.length - remainingPolygons.length + progress.current,
+              totalItems: polygons.length,
+              percentComplete: sheetProgress,
+              placement: {
+                sheetIndex,
+                id: progress.placement.id,
+                x: progress.placement.x * MM_PER_INCH,
+                y: progress.placement.y * MM_PER_INCH,
+                rotation: progress.placement.rotation
+              }
+            });
+          }
+        }
+      );
+
       const result = packer.pack(remainingPolygons);
 
       if (result.placements.length === 0) {
         break;
       }
 
-      // Convert placements (inches → mm) and emit real-time updates
+      // Convert placements (inches → mm)
       const placements = result.placements.map(p => ({
         id: p.id,
         x: p.x * MM_PER_INCH,
         y: p.y * MM_PER_INCH,
         rotation: p.rotation,
       }));
-
-      // Send each placement as a real-time update
-      placements.forEach((placement, index) => {
-        sendMessage({
-          type: 'progress',
-          message: `Placed ${placement.id.split('_')[0]} on sheet ${sheetIndex + 1}`,
-          currentSheet: sheetIndex + 1,
-          totalSheets: currentPageCount,
-          itemsPlaced: polygons.length - remainingPolygons.length + index + 1,
-          totalItems: polygons.length,
-          percentComplete: sheetProgress,
-          placement: {
-            sheetIndex,
-            id: placement.id,
-            x: placement.x,
-            y: placement.y,
-            rotation: placement.rotation
-          }
-        });
-      });
 
       // Calculate utilization
       const usedAreaInches = result.placements.reduce((sum, p) => {
