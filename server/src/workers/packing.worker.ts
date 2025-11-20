@@ -20,6 +20,11 @@ import {
   MultiSheetNester,
   NestablePolygon
 } from '../services/polygon-nesting.service';
+import {
+  NFPNester,
+  MultiSheetNFPNester,
+  NestablePolygon as NFPPolygon
+} from '../services/nfp-nesting.service';
 
 export interface PackingWorkerData {
   type: 'single-sheet' | 'multi-sheet';
@@ -38,7 +43,8 @@ export interface PackingWorkerData {
   pageCount?: number; // For multi-sheet
   packAllItems?: boolean; // For multi-sheet
   useV2Algorithm?: boolean; // Use Bottom-Left algorithm (deprecated)
-  useV3Algorithm?: boolean; // Use true nesting with gravity (NEW - default: true)
+  useV3Algorithm?: boolean; // Use gravity-based nesting (deprecated)
+  useNFP?: boolean; // Use No-Fit Polygon nesting (NEW - default: true)
 }
 
 export interface PackingWorkerProgress {
@@ -101,9 +107,9 @@ function sendMessage(message: PackingWorkerMessage) {
 }
 
 async function performSingleSheetPacking(data: PackingWorkerData) {
-  const { stickers, sheetWidth, sheetHeight, spacing, cellsPerInch, stepSize, rotations, useV2Algorithm, useV3Algorithm } = data;
+  const { stickers, sheetWidth, sheetHeight, spacing, cellsPerInch, stepSize, rotations, useV2Algorithm, useV3Algorithm, useNFP = true } = data;
 
-  const algorithm = useV3Algorithm ? 'V3 (Nesting)' : useV2Algorithm ? 'V2 (Bottom-Left)' : 'V1 (Grid)';
+  const algorithm = useNFP ? 'NFP (No-Fit Polygon)' : useV3Algorithm ? 'V3 (Gravity)' : useV2Algorithm ? 'V2 (Bottom-Left)' : 'V1 (Grid)';
   sendMessage({
     type: 'progress',
     message: `Starting polygon packing (${algorithm})...`,
@@ -144,7 +150,16 @@ async function performSingleSheetPacking(data: PackingWorkerData) {
 
   let result: any;
 
-  if (useV3Algorithm) {
+  if (useNFP) {
+    // Use NFP algorithm (No-Fit Polygon - true nesting)
+    const nester = new NFPNester(
+      sheetWidthInches,
+      sheetHeightInches,
+      spacingInches,
+      rotations
+    );
+    result = await nester.nest(polygons);
+  } else if (useV3Algorithm) {
     // Use new V3 algorithm (Gravity-based true nesting)
     const nester = new GravityNester(
       sheetWidthInches,
@@ -278,19 +293,21 @@ async function performMultiSheetPacking(data: PackingWorkerData) {
     rotations,
     packAllItems = false,  // EXPLICIT DEFAULT HERE TOO
     useV2Algorithm,
-    useV3Algorithm
+    useV3Algorithm,
+    useNFP = true  // NFP is now default
   } = data;
 
   // DEBUG LOGGING
   console.log(`\n========== WORKER DEBUG ==========`);
   console.log(`packAllItems from data: ${data.packAllItems}`);
   console.log(`packAllItems after destructure: ${packAllItems}`);
+  console.log(`useNFP: ${useNFP}`);
   console.log(`useV3Algorithm: ${useV3Algorithm}`);
   console.log(`pageCount: ${pageCount}`);
   console.log(`spacing: ${spacing}`);
   console.log(`==================================\n`);
 
-  const algorithm = useV3Algorithm ? 'V3 (Nesting)' : useV2Algorithm ? 'V2 (Bottom-Left)' : 'V1 (Grid)';
+  const algorithm = useNFP ? 'NFP (No-Fit Polygon)' : useV3Algorithm ? 'V3 (Gravity)' : useV2Algorithm ? 'V2 (Bottom-Left)' : 'V1 (Grid)';
   const mode = packAllItems ? 'PACK ALL ITEMS (auto-expand)' : 'FIXED PAGES';
   sendMessage({
     type: 'progress',
@@ -325,6 +342,54 @@ async function performMultiSheetPacking(data: PackingWorkerData) {
       area: areaInches,
     };
   });
+
+  // Use NFP algorithm (No-Fit Polygon - true nesting)
+  if (useNFP) {
+    sendMessage({
+      type: 'progress',
+      message: 'Using No-Fit Polygon nesting...',
+      percentComplete: 5
+    });
+
+    const result = await MultiSheetNFPNester.nestMultiSheet(
+      polygons,
+      pageCount,
+      sheetWidthInches,
+      sheetHeightInches,
+      spacingInches,
+      rotations,
+      packAllItems
+    );
+
+    // Convert back to mm
+    const sheetsInMM = result.sheets.map(sheet => ({
+      ...sheet,
+      placements: sheet.placements.map(p => ({
+        id: p.id,
+        x: p.x * MM_PER_INCH,
+        y: p.y * MM_PER_INCH,
+        rotation: p.rotation
+      }))
+    }));
+
+    sendMessage({
+      type: 'progress',
+      message: 'Complete!',
+      percentComplete: 100
+    });
+
+    sendMessage({
+      type: 'result',
+      result: {
+        sheets: sheetsInMM,
+        totalUtilization: result.totalUtilization,
+        quantities: result.quantities,
+        message: result.message
+      }
+    });
+
+    return; // Exit early - NFP algorithm complete
+  }
 
   // Use V3 algorithm (true nesting with gravity)
   if (useV3Algorithm) {
