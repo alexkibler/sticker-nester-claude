@@ -108,7 +108,7 @@ export class ApiService {
       console.log(`[API] Socket connected: ${this.socket?.id}`);
     });
 
-    this.socket.on('disconnect', (reason) => {
+    this.socket.on('disconnect', (reason: string) => {
       console.log(`[API] Socket disconnected: ${reason}`);
     });
 
@@ -127,7 +127,7 @@ export class ApiService {
       this.nestingError$.next(data);
     });
 
-    this.socket.on('connect_error', (error) => {
+    this.socket.on('connect_error', (error: Error) => {
       console.error('[API] Socket connection error:', error);
     });
   }

@@ -98,7 +98,7 @@ export class App implements OnInit, OnDestroy {
 
     // Subscribe to nesting events
     this.subscriptions.add(
-      this.apiService.onNestingProgress().subscribe(progress => {
+      this.apiService.onNestingProgress().subscribe((progress: any) => {
         console.log('Nesting progress:', progress);
         // Update UI with progress
         this.updateNestingProgress(progress);
@@ -106,14 +106,14 @@ export class App implements OnInit, OnDestroy {
     );
 
     this.subscriptions.add(
-      this.apiService.onNestingComplete().subscribe(({ jobId, result }) => {
+      this.apiService.onNestingComplete().subscribe(({ jobId, result }: { jobId: string; result: any }) => {
         console.log('Nesting complete:', jobId, result);
         this.handleNestingComplete(result);
       })
     );
 
     this.subscriptions.add(
-      this.apiService.onNestingError().subscribe(({ jobId, error }) => {
+      this.apiService.onNestingError().subscribe(({ jobId, error }: { jobId: string; error: string }) => {
         console.error('Nesting error:', jobId, error);
         alert(`Nesting error: ${error}`);
         this.isNesting = false;
