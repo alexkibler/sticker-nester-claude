@@ -28,11 +28,7 @@
     "@angular/forms": "^20.3.0",
     "@angular/platform-browser": "^20.3.0",
     "@angular/router": "^20.3.0",
-    "imagetracerjs": "^1.2.6",
-    "js-clipper": "^1.0.1",
-    "jspdf": "^3.0.3",
     "rxjs": "~7.8.0",
-    "simplify-js": "^1.2.4",
     "tslib": "^2.3.0",
     "uuid": "^13.0.0",
     "zone.js": "~0.15.0"

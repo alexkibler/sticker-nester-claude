@@ -1,6 +1,5 @@
 import { Component, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { StickerInput } from '../models';
 
 /**
  * UploadDropzoneComponent handles file uploads

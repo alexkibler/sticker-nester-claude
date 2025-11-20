@@ -244,26 +244,7 @@ export class CanvasPreviewComponent implements AfterViewInit, OnChanges {
 
   private drawGrid(): void {
     if (!this.ctx) return;
-
-    this.ctx.strokeStyle = '#eeeeee';
-    this.ctx.lineWidth = 1;
-
-    // Draw 1-inch grid
-    for (let x = 0; x <= this.sheetWidth; x++) {
-      const px = x * this.scale;
-      this.ctx.beginPath();
-      this.ctx.moveTo(px, 0);
-      this.ctx.lineTo(px, this.sheetHeight * this.scale);
-      this.ctx.stroke();
-    }
-
-    for (let y = 0; y <= this.sheetHeight; y++) {
-      const py = y * this.scale;
-      this.ctx.beginPath();
-      this.ctx.moveTo(0, py);
-      this.ctx.lineTo(this.sheetWidth * this.scale, py);
-      this.ctx.stroke();
-    }
+    this.drawGridOnContext(this.ctx, this.scale);
   }
 
   private renderMultipleSheets(): void {
@@ -471,103 +452,7 @@ export class CanvasPreviewComponent implements AfterViewInit, OnChanges {
 
   private drawSticker(sticker: StickerSource, placement: Placement): void {
     if (!this.ctx) return;
-
-    // STRICT STATE ISOLATION: Save state before any transformations
-    this.ctx.save();
-
-    // Convert placement coordinates (in inches) to pixels
-    const x = placement.x * this.scale;
-    const y = placement.y * this.scale;
-    const width = sticker.inputDimensions.width * this.scale;
-    const height = sticker.inputDimensions.height * this.scale;
-
-    // Step 1: Translate to placement position (absolute from packer)
-    this.ctx.translate(x, y);
-
-    // Step 2: Handle rotation with center-based pivot
-    if (placement.rotation && placement.rotation !== 0) {
-      const angleRad = (placement.rotation * Math.PI) / 180;
-      const is90DegRotation = Math.abs(Math.abs(placement.rotation) - 90) < 0.1;
-
-      if (is90DegRotation) {
-        // For 90-degree rotations: rotate around center of ROTATED bounding box
-        // Rotated box dimensions are swapped: height × width
-        // Center of rotated box is at (height/2, width/2) from placement origin
-        this.ctx.translate(height / 2, width / 2);
-        this.ctx.rotate(angleRad);
-
-        // Draw image centered using ORIGINAL dimensions
-        if (sticker.bitmap) {
-          this.ctx.globalAlpha = 0.8;
-          this.ctx.drawImage(sticker.bitmap, -width / 2, -height / 2, width, height);
-          this.ctx.globalAlpha = 1.0;
-        }
-
-        // Draw outline
-        if (sticker.simplifiedPath.length > 0) {
-          this.ctx.strokeStyle = '#999999';
-          this.ctx.lineWidth = 1;
-          this.ctx.beginPath();
-
-          const scaledPoints = sticker.simplifiedPath.map(p => ({
-            x: (p.x * this.scale) - width / 2,
-            y: (p.y * this.scale) - height / 2
-          }));
-
-          this.ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
-          for (let i = 1; i < scaledPoints.length; i++) {
-            this.ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
-          }
-          this.ctx.closePath();
-          this.ctx.stroke();
-        }
-      } else {
-        // For arbitrary angles: rotate around center normally
-        this.ctx.translate(width / 2, height / 2);
-        this.ctx.rotate(angleRad);
-
-        // Draw image offset by negative half dimensions (no swap for non-90° rotations)
-        if (sticker.bitmap) {
-          this.ctx.globalAlpha = 0.8;
-          this.ctx.drawImage(sticker.bitmap, -width / 2, -height / 2, width, height);
-          this.ctx.globalAlpha = 1.0;
-        }
-
-        // Draw outline
-        if (sticker.simplifiedPath.length > 0) {
-          this.ctx.strokeStyle = '#999999';
-          this.ctx.lineWidth = 1;
-          this.ctx.beginPath();
-
-          const scaledPoints = sticker.simplifiedPath.map(p => ({
-            x: (p.x * this.scale) - width / 2,
-            y: (p.y * this.scale) - height / 2
-          }));
-
-          this.ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
-          for (let i = 1; i < scaledPoints.length; i++) {
-            this.ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
-          }
-          this.ctx.closePath();
-          this.ctx.stroke();
-        }
-      }
-    } else {
-      // No rotation: Draw at origin (0, 0)
-      if (sticker.bitmap) {
-        this.ctx.globalAlpha = 0.8;
-        this.ctx.drawImage(sticker.bitmap, 0, 0, width, height);
-        this.ctx.globalAlpha = 1.0;
-      }
-
-      // Draw outline (subtle)
-      if (sticker.simplifiedPath.length > 0) {
-        this.drawPath(sticker.simplifiedPath, '#999999', 1);
-      }
-    }
-
-    // STRICT STATE ISOLATION: Restore state after rendering this sticker
-    this.ctx.restore();
+    this.drawStickerOnContext(this.ctx, sticker, placement, this.scale);
   }
 
   private drawPath(
@@ -575,24 +460,7 @@ export class CanvasPreviewComponent implements AfterViewInit, OnChanges {
     color: string,
     lineWidth: number
   ): void {
-    if (!this.ctx || points.length === 0) return;
-
-    this.ctx.strokeStyle = color;
-    this.ctx.lineWidth = lineWidth;
-    this.ctx.beginPath();
-
-    // Scale points to canvas
-    const scaledPoints = points.map(p => ({
-      x: p.x * this.scale,
-      y: p.y * this.scale
-    }));
-
-    this.ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
-    for (let i = 1; i < scaledPoints.length; i++) {
-      this.ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
-    }
-
-    this.ctx.closePath();
-    this.ctx.stroke();
+    if (!this.ctx) return;
+    this.drawPathOnContext(this.ctx, points, color, lineWidth, this.scale);
   }
 }

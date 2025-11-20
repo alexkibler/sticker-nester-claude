@@ -414,15 +414,6 @@ import {
       background-color: #45a049;
     }
 
-    .btn-secondary {
-      background-color: #ff9800;
-      color: white;
-    }
-
-    .btn-secondary:hover:not(:disabled) {
-      background-color: #e68900;
-    }
-
     .btn-success {
       background-color: #2196F3;
       color: white;

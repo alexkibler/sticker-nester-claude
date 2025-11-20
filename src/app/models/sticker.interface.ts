@@ -23,14 +23,3 @@ export interface StickerSource {
   // Processing state
   isProcessed: boolean;
 }
-
-/**
- * Initial sticker creation with only basic info
- */
-export interface StickerInput {
-  file: File;
-  width: number;
-  height: number;
-  unit: 'in' | 'cm' | 'mm';
-  margin: number; // In inches
-}
