@@ -7,6 +7,7 @@ import { UploadDropzoneComponent } from './components/upload-dropzone.component'
 import { CanvasPreviewComponent } from './components/canvas-preview.component';
 import { ControlPanelComponent } from './components/control-panel.component';
 import { ProgressBarComponent } from './components/progress-bar.component';
+import { VersionBadgeComponent } from './components/version-badge.component';
 
 // Services
 import {
@@ -41,7 +42,8 @@ import { SheetPlacement } from './services/api.service';
     UploadDropzoneComponent,
     CanvasPreviewComponent,
     ControlPanelComponent,
-    ProgressBarComponent
+    ProgressBarComponent,
+    VersionBadgeComponent
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss'

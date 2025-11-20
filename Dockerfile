@@ -46,6 +46,14 @@ RUN ls -la bin/ && test -f bin/nest-packer || (echo "ERROR: nest-packer binary n
 FROM node:20-alpine
 WORKDIR /app
 
+# Capture git info for version display
+ARG GIT_BRANCH=unknown
+ARG GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
+ENV GIT_BRANCH=${GIT_BRANCH}
+ENV GIT_COMMIT=${GIT_COMMIT}
+ENV BUILD_TIME=${BUILD_TIME}
+
 # Install native dependencies for Sharp image processing and C++ runtime
 RUN apk add --no-cache \
     python3 \

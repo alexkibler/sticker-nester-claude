@@ -17,9 +17,18 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/nesting', nestingRouter);
 app.use('/api/pdf', pdfRouter);
 
-// Health check
+// Health check with version info
 app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', message: 'Mosaic API is running' });
+  res.json({
+    status: 'ok',
+    message: 'Mosaic API is running',
+    version: {
+      branch: process.env.GIT_BRANCH || 'unknown',
+      commit: process.env.GIT_COMMIT || 'unknown',
+      buildTime: process.env.BUILD_TIME || 'unknown',
+      nodeEnv: process.env.NODE_ENV || 'development'
+    }
+  });
 });
 
 // Serve static files from Angular frontend (production mode)
