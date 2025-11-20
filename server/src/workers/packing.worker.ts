@@ -45,6 +45,8 @@ export interface PackingWorkerData {
   useV2Algorithm?: boolean; // Use Bottom-Left algorithm (deprecated)
   useV3Algorithm?: boolean; // Use gravity-based nesting (deprecated)
   useNFP?: boolean; // Use No-Fit Polygon nesting (NEW - default: true)
+  optimizer?: 'greedy' | 'annealing' | 'genetic'; // Optimizer type
+  optimizerConfig?: any; // Optional config for advanced optimizers
 }
 
 export interface PackingWorkerProgress {
