@@ -320,7 +320,7 @@ export class PolygonPacker {
   /**
    * Pack polygons onto the sheet using rasterization overlay algorithm
    */
-  pack(polygons: PackablePolygon[]): PolygonPackingResult {
+  async pack(polygons: PackablePolygon[]): Promise<PolygonPackingResult> {
     console.log(`\n=== Starting polygon packing ===`);
     console.log(`Polygons: ${polygons.length}`);
     console.log(`Rotations: ${this.rotations.join(', ')}°`);
@@ -342,10 +342,10 @@ export class PolygonPacker {
       const polygon = sorted[i];
       const itemStartTime = Date.now();
 
-      // Report progress
+      // Report progress - what we're ABOUT to try
       if (this.progressCallback) {
         this.progressCallback({
-          current: i + 1,
+          current: i,
           total: sorted.length,
           itemId: polygon.id,
           status: 'trying',
@@ -354,6 +354,9 @@ export class PolygonPacker {
       }
 
       console.log(`\n[${i + 1}/${sorted.length}] Placing ${polygon.id} (${(polygon.width * polygon.height).toFixed(2)} sq in)...`);
+
+      // Yield to event loop to allow messages to be sent
+      await new Promise(resolve => setImmediate(resolve));
 
       const result = this.findPlacement(polygon, gridDims);
 
@@ -377,6 +380,9 @@ export class PolygonPacker {
             placement: result.placement,
           });
         }
+
+        // Yield to event loop after placing to send the placement message
+        await new Promise(resolve => setImmediate(resolve));
       } else {
         unplaced.push(polygon);
         failures.push(result.failure!);

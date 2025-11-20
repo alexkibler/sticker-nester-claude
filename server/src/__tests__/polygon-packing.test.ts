@@ -125,7 +125,7 @@ describe('PolygonPacking', () => {
   });
 
   describe('PolygonPacker', () => {
-    it('should pack a single square polygon', () => {
+    it('should pack a single square polygon', async () => {
       const packer = new PolygonPacker(12, 12, 0.0625, 100, 0.1);
 
       const polygons: PackablePolygon[] = [
@@ -143,7 +143,7 @@ describe('PolygonPacking', () => {
         },
       ];
 
-      const result = packer.pack(polygons);
+      const result = await packer.pack(polygons);
 
       expect(result.placements).toHaveLength(1);
       expect(result.placements[0].id).toBe('square-1');
@@ -152,7 +152,7 @@ describe('PolygonPacking', () => {
       expect(result.unplacedPolygons).toHaveLength(0);
     });
 
-    it('should pack multiple non-overlapping squares', () => {
+    it('should pack multiple non-overlapping squares', async () => {
       const packer = new PolygonPacker(12, 12, 0.0625, 100, 0.1);
 
       const polygons: PackablePolygon[] = [
@@ -194,7 +194,7 @@ describe('PolygonPacking', () => {
         },
       ];
 
-      const result = packer.pack(polygons);
+      const result = await packer.pack(polygons);
 
       expect(result.placements.length).toBeGreaterThan(0);
       expect(result.utilization).toBeGreaterThan(0);
@@ -216,7 +216,7 @@ describe('PolygonPacking', () => {
       expect(hasCollision).toBe(false);
     });
 
-    it('should pack irregular polygon (triangle)', () => {
+    it('should pack irregular polygon (triangle)', async () => {
       const packer = new PolygonPacker(12, 12, 0.0625, 100, 0.1);
 
       const polygons: PackablePolygon[] = [
@@ -233,14 +233,14 @@ describe('PolygonPacking', () => {
         },
       ];
 
-      const result = packer.pack(polygons);
+      const result = await packer.pack(polygons);
 
       expect(result.placements).toHaveLength(1);
       expect(result.placements[0].id).toBe('triangle-1');
       expect(result.unplacedPolygons).toHaveLength(0);
     });
 
-    it('should try rotations to find optimal placement', () => {
+    it('should try rotations to find optimal placement', async () => {
       const packer = new PolygonPacker(3, 12, 0.0625, 100, 0.1, [0, 90]);
 
       // Wide rectangle that only fits when rotated
@@ -259,7 +259,7 @@ describe('PolygonPacking', () => {
         },
       ];
 
-      const result = packer.pack(polygons);
+      const result = await packer.pack(polygons);
 
       // Should place with rotation
       expect(result.placements).toHaveLength(1);
@@ -274,7 +274,7 @@ describe('PolygonPacking', () => {
       service = new NestingService();
     });
 
-    it('should use polygon packing for single sheet', () => {
+    it('should use polygon packing for single sheet', async () => {
       const stickers: Sticker[] = [
         {
           id: 'sticker-1',
@@ -289,14 +289,14 @@ describe('PolygonPacking', () => {
         },
       ];
 
-      const result = service.nestStickersPolygon(stickers, 12, 12, 0.0625, 100, 0.1);
+      const result = await service.nestStickersPolygon(stickers, 12, 12, 0.0625, 100, 0.1);
 
       expect(result.placements).toHaveLength(1);
       expect(result.placements[0].id).toBe('sticker-1');
       expect(result.utilization).toBeGreaterThan(0);
     });
 
-    it('should use polygon packing for multi-sheet', () => {
+    it('should use polygon packing for multi-sheet', async () => {
       const stickers: Sticker[] = [
         {
           id: 'sticker-A',
@@ -322,7 +322,7 @@ describe('PolygonPacking', () => {
         },
       ];
 
-      const result = service.nestStickersMultiSheetPolygon(stickers, 12, 12, 2, 0.0625, 50, 0.2);
+      const result = await service.nestStickersMultiSheetPolygon(stickers, 12, 12, 2, 0.0625, 50, 0.2);
 
       expect(result.sheets.length).toBeGreaterThan(0);
       expect(result.totalUtilization).toBeGreaterThan(0);
@@ -330,7 +330,7 @@ describe('PolygonPacking', () => {
       expect(result.quantities['sticker-B']).toBeGreaterThan(0);
     });
 
-    it('should handle irregular polygon shapes better than rectangles', () => {
+    it('should handle irregular polygon shapes better than rectangles', async () => {
       // Create a C-shaped polygon that wastes space if packed as rectangle
       const cShape: Point[] = [
         { x: 0, y: 0 },
@@ -354,7 +354,7 @@ describe('PolygonPacking', () => {
       const rectResult = service.nestStickers([sticker], 12, 12, 0.0625);
 
       // Pack using polygons with lower resolution for faster test
-      const polyResult = service.nestStickersPolygon([sticker], 12, 12, 0.0625, 50, 0.2);
+      const polyResult = await service.nestStickersPolygon([sticker], 12, 12, 0.0625, 50, 0.2);
 
       // Both should place the sticker
       expect(rectResult.placements).toHaveLength(1);
@@ -367,16 +367,16 @@ describe('PolygonPacking', () => {
   });
 
   describe('Performance and Edge Cases', () => {
-    it('should handle empty polygon list', () => {
+    it('should handle empty polygon list', async () => {
       const packer = new PolygonPacker(12, 12, 0.0625);
-      const result = packer.pack([]);
+      const result = await packer.pack([]);
 
       expect(result.placements).toHaveLength(0);
       expect(result.utilization).toBe(0);
       expect(result.unplacedPolygons).toHaveLength(0);
     });
 
-    it('should handle polygons that do not fit', () => {
+    it('should handle polygons that do not fit', async () => {
       const packer = new PolygonPacker(2, 2, 0.0625, 100, 0.1);
 
       const tooLarge: PackablePolygon = {
@@ -392,13 +392,13 @@ describe('PolygonPacking', () => {
         area: 100,
       };
 
-      const result = packer.pack([tooLarge]);
+      const result = await packer.pack([tooLarge]);
 
       expect(result.placements).toHaveLength(0);
       expect(result.unplacedPolygons).toHaveLength(1);
     });
 
-    it('should work with very small polygons', () => {
+    it('should work with very small polygons', async () => {
       const packer = new PolygonPacker(12, 12, 0.0625, 100, 0.05);
 
       const tiny: PackablePolygon = {
@@ -414,7 +414,7 @@ describe('PolygonPacking', () => {
         area: 0.01,
       };
 
-      const result = packer.pack([tiny]);
+      const result = await packer.pack([tiny]);
 
       expect(result.placements).toHaveLength(1);
     });

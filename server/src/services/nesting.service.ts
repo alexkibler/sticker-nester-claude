@@ -506,7 +506,7 @@ export class NestingService {
    * Nest stickers onto a single sheet using POLYGON packing (rasterization overlay algorithm)
    * This uses the actual polygon shapes instead of bounding rectangles
    */
-  nestStickersPolygon(
+  async nestStickersPolygon(
     stickers: Sticker[],
     sheetWidth: number,
     sheetHeight: number,
@@ -514,7 +514,7 @@ export class NestingService {
     cellsPerInch: number = 100,
     stepSize: number = 0.05,
     rotations: number[] = [0, 90, 180, 270]
-  ): NestingResult {
+  ): Promise<NestingResult> {
     console.log(`Polygon packing (single sheet): ${stickers.length} stickers`);
 
     // CRITICAL: Convert dimensions from millimeters to inches
@@ -550,7 +550,7 @@ export class NestingService {
 
     // Create packer and pack polygons (all dimensions now in inches)
     const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize, rotations);
-    const result = packer.pack(polygons);
+    const result = await packer.pack(polygons);
 
     // Convert polygon placements to standard placements (convert positions back to mm for consistency)
     const placements: Placement[] = result.placements.map(p => ({
@@ -583,7 +583,7 @@ export class NestingService {
    * 1. Pack All Items (packAllItems=true) - Auto-expand pages to fit ALL items (production default)
    * 2. Fixed Pages (packAllItems=false) - Pack as many as possible in N pages with early failure detection
    */
-  nestStickersMultiSheetPolygon(
+  async nestStickersMultiSheetPolygon(
     stickers: Sticker[],
     sheetWidth: number,
     sheetHeight: number,
@@ -593,7 +593,7 @@ export class NestingService {
     stepSize: number = 0.05,
     rotations: number[] = [0, 90, 180, 270],
     packAllItems: boolean = true // TRUE = auto-expand (production), FALSE = fixed pages
-  ): MultiSheetResult {
+  ): Promise<MultiSheetResult> {
     const mode = packAllItems ? 'PACK ALL ITEMS (auto-expand)' : 'FIXED PAGES';
     console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
     console.log(`║ Polygon Multi-Sheet Packing: ${mode.padEnd(33)}║`);
@@ -700,7 +700,7 @@ export class NestingService {
 
         // Create packer for this sheet
         const packer = new PolygonPacker(sheetWidthInches, sheetHeightInches, spacingInches, cellsPerInch, stepSize, rotations);
-        const result = packer.pack(remainingPolygons);
+        const result = await packer.pack(remainingPolygons);
 
         if (result.placements.length === 0) {
           console.log(`   No items placed on this sheet (all remaining items too large or no space)`);

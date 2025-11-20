@@ -62,21 +62,23 @@ export type PackingWorkerMessage = PackingWorkerProgress | PackingWorkerResult |
 if (parentPort) {
   const data = workerData as PackingWorkerData;
 
-  try {
-    if (data.type === 'single-sheet') {
-      performSingleSheetPacking(data);
-    } else {
-      performMultiSheetPacking(data);
+  (async () => {
+    try {
+      if (data.type === 'single-sheet') {
+        await performSingleSheetPacking(data);
+      } else {
+        await performMultiSheetPacking(data);
+      }
+      // Don't call process.exit() - let the worker end naturally
+      // The parent will terminate it after receiving the result message
+    } catch (error: any) {
+      sendMessage({
+        type: 'error',
+        error: error.message || 'Unknown error in packing worker'
+      });
+      process.exit(1);
     }
-    // Don't call process.exit() - let the worker end naturally
-    // The parent will terminate it after receiving the result message
-  } catch (error: any) {
-    sendMessage({
-      type: 'error',
-      error: error.message || 'Unknown error in packing worker'
-    });
-    process.exit(1);
-  }
+  })();
 }
 
 function sendMessage(message: PackingWorkerMessage) {
@@ -85,7 +87,7 @@ function sendMessage(message: PackingWorkerMessage) {
   }
 }
 
-function performSingleSheetPacking(data: PackingWorkerData) {
+async function performSingleSheetPacking(data: PackingWorkerData) {
   const { stickers, sheetWidth, sheetHeight, spacing, cellsPerInch, stepSize, rotations } = data;
 
   sendMessage({
@@ -136,7 +138,15 @@ function performSingleSheetPacking(data: PackingWorkerData) {
     rotations,
     (progress) => {
       // Send real-time placement updates
-      if (progress.status === 'placed' && progress.placement) {
+      if (progress.status === 'trying') {
+        sendMessage({
+          type: 'progress',
+          message: `Trying to place ${progress.itemId}...`,
+          itemsPlaced: progress.current,
+          totalItems: progress.total,
+          percentComplete: 25 + Math.floor((progress.current / progress.total) * 50)
+        });
+      } else if (progress.status === 'placed' && progress.placement) {
         sendMessage({
           type: 'progress',
           message: `Placed ${progress.itemId}`,
@@ -154,7 +164,7 @@ function performSingleSheetPacking(data: PackingWorkerData) {
       }
     }
   );
-  const result = packer.pack(polygons);
+  const result = await packer.pack(polygons);
 
   sendMessage({
     type: 'progress',
@@ -192,7 +202,7 @@ function performSingleSheetPacking(data: PackingWorkerData) {
   });
 }
 
-function performMultiSheetPacking(data: PackingWorkerData) {
+async function performMultiSheetPacking(data: PackingWorkerData) {
   const {
     stickers,
     sheetWidth,
@@ -316,8 +326,18 @@ function performMultiSheetPacking(data: PackingWorkerData) {
         stepSize,
         rotations,
         (progress) => {
-          // Only send placement events (not "trying" or "failed")
-          if (progress.status === 'placed' && progress.placement) {
+          // Send both "trying" and "placed" events for real-time updates
+          if (progress.status === 'trying') {
+            sendMessage({
+              type: 'progress',
+              message: `Trying to place ${progress.itemId.split('_')[0]} on sheet ${sheetIndex + 1}...`,
+              currentSheet: sheetIndex + 1,
+              totalSheets: currentPageCount,
+              itemsPlaced: polygons.length - remainingPolygons.length + progress.current,
+              totalItems: polygons.length,
+              percentComplete: sheetProgress
+            });
+          } else if (progress.status === 'placed' && progress.placement) {
             sendMessage({
               type: 'progress',
               message: `Placed ${progress.itemId.split('_')[0]} on sheet ${sheetIndex + 1}`,
@@ -338,7 +358,7 @@ function performMultiSheetPacking(data: PackingWorkerData) {
         }
       );
 
-      const result = packer.pack(remainingPolygons);
+      const result = await packer.pack(remainingPolygons);
 
       if (result.placements.length === 0) {
         break;
