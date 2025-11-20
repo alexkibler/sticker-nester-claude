@@ -68,11 +68,14 @@ if (parentPort) {
     } else {
       performMultiSheetPacking(data);
     }
+    // Don't call process.exit() - let the worker end naturally
+    // The parent will terminate it after receiving the result message
   } catch (error: any) {
     sendMessage({
       type: 'error',
       error: error.message || 'Unknown error in packing worker'
     });
+    process.exit(1);
   }
 }
 

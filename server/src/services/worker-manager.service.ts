@@ -31,6 +31,9 @@ export class WorkerManagerService {
     options: WorkerJobOptions = {}
   ): Promise<any> {
     return new Promise((resolve, reject) => {
+      // Track if we've already resolved/rejected to avoid double-handling
+      let settled = false;
+
       // Determine worker script path
       // If we're running from the 'dist' folder (compiled), use .js
       // Otherwise use .ts with ts-node
@@ -59,11 +62,13 @@ export class WorkerManagerService {
           options.onProgress?.(message);
         } else if (message.type === 'result') {
           console.log(`[WorkerManager] Job ${jobId} completed successfully`);
+          settled = true;
           options.onComplete?.(message.result);
           this.terminateWorker(jobId);
           resolve(message.result);
         } else if (message.type === 'error') {
           console.error(`[WorkerManager] Job ${jobId} error: ${message.error}`);
+          settled = true;
           options.onError?.(message.error);
           this.terminateWorker(jobId);
           reject(new Error(message.error));
@@ -72,17 +77,21 @@ export class WorkerManagerService {
 
       // Handle worker errors
       worker.on('error', (error) => {
-        console.error(`[WorkerManager] Worker error for job ${jobId}:`, error);
-        options.onError?.(error.message);
-        this.terminateWorker(jobId);
-        reject(error);
+        if (!settled) {
+          console.error(`[WorkerManager] Worker error for job ${jobId}:`, error);
+          settled = true;
+          options.onError?.(error.message);
+          this.terminateWorker(jobId);
+          reject(error);
+        }
       });
 
       // Handle worker exit
       worker.on('exit', (code) => {
-        if (code !== 0) {
+        if (!settled && code !== 0) {
           const error = `Worker stopped with exit code ${code}`;
           console.error(`[WorkerManager] ${error}`);
+          settled = true;
           options.onError?.(error);
           this.terminateWorker(jobId);
           reject(new Error(error));
